@@ -42,6 +42,8 @@ pub enum CoreType {
     Armv8m,
     /// RISC-V
     Riscv,
+    /// MIPS family ~release 5
+    MIPS,
 }
 
 impl CoreType {
@@ -61,6 +63,8 @@ pub enum Architecture {
     Arm,
     /// A RISC-V core.
     Riscv,
+    /// A MIPS core.
+    MIPS,
 }
 
 impl CoreType {
@@ -68,6 +72,7 @@ impl CoreType {
     pub fn architecture(&self) -> Architecture {
         match self {
             CoreType::Riscv => Architecture::Riscv,
+            CoreType::MIPS => Architecture::MIPS,
             _ => Architecture::Arm,
         }
     }
@@ -86,6 +91,16 @@ pub enum InstructionSet {
     RV32,
     /// RISC-V 32-bit compressed instruction sets (RV32C) - covers all ISA variants that allow compressed 16-bit instructions.
     RV32C,
+    /// MIPS32
+    MIPS32,
+    /// MIPS64
+    MIPS64,
+    /// MIPS16e with version 2
+    MIPS16e,
+    /// microMIPS
+    MicroMIPS,
+    /// nanoMIPS
+    NanoMIPS,
 }
 
 impl InstructionSet {
@@ -100,6 +115,11 @@ impl InstructionSet {
             InstructionSet::A64 => 4,
             InstructionSet::RV32 => 4,
             InstructionSet::RV32C => 2,
+            InstructionSet::MIPS32 => 4,
+            InstructionSet::MIPS64 => 4,
+            InstructionSet::MIPS16e => 2,
+            InstructionSet::NanoMIPS => 2,
+            InstructionSet::MicroMIPS => 2,
         }
     }
     /// Get the maximum instruction size in bytes. All supported architectures have a maximum instruction size of 4 bytes.
@@ -219,6 +239,14 @@ impl ChipFamily {
                         if core.core_type != CoreType::Riscv {
                             return Err(format!(
                                 "Riscv options don't match core type {:?} on core {}",
+                                core.core_type, core.name
+                            ));
+                        }
+                    }
+                    CoreAccessOptions::MIPS(_) => {
+                        if core.core_type != CoreType::MIPS {
+                            return Err(format!(
+                                "MIPS options don't match core type {:?} on core {}",
                                 core.core_type, core.name
                             ));
                         }

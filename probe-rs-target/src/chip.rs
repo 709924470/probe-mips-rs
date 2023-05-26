@@ -103,6 +103,8 @@ pub enum CoreAccessOptions {
     Arm(ArmCoreAccessOptions),
     /// Riscv specific options
     Riscv(RiscvCoreAccessOptions),
+    /// MIPS Specific options
+    MIPS(MIPSCoreAccessOptions),
 }
 
 /// The data required to access an ARM core
@@ -138,3 +140,6 @@ pub fn get_ir_lengths(scan_chain: &Vec<ScanChainElement>) -> Vec<u8> {
     }
     ir_lengths
 }
+/// The data required to access a MIPS core
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MIPSCoreAccessOptions {}
