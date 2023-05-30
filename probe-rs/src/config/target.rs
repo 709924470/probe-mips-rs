@@ -19,6 +19,9 @@ use crate::architecture::arm::{
     },
     ApAddress, DpAddress,
 };
+use crate::architecture::mips::sequences::{
+    pic32mz::PIC32MZ, DefaultMipsSequence, MipsDebugSequence,
+};
 use crate::architecture::riscv::sequences::{esp32c3::ESP32C3, esp32c6::ESP32C6};
 use crate::architecture::riscv::sequences::{DefaultRiscvSequence, RiscvDebugSequence};
 use crate::flashing::FlashLoader;
@@ -112,6 +115,7 @@ impl Target {
         let mut debug_sequence = match chip.cores[0].core_type.architecture() {
             Architecture::Arm => DebugSequence::Arm(DefaultArmSequence::create()),
             Architecture::Riscv => DebugSequence::Riscv(DefaultRiscvSequence::create()),
+            Architecture::MIPS => DebugSequence::Mips(DefaultMipsSequence::create()),
         };
 
         if chip.name.starts_with("MIMXRT10") {
@@ -185,7 +189,11 @@ impl Target {
         } else if chip.name.starts_with("XMC4") {
             tracing::warn!("Using custom sequence for XMC4000");
             debug_sequence = DebugSequence::Arm(XMC4000::create());
+        } else if chip.name.starts_with("PIC32MZ") {
+            tracing::warn!("Using custom sequence for Microchip PIC32MZ");
+            debug_sequence = DebugSequence::Mips(PIC32MZ::create());
         }
+        // TODO: MIPS chip supports
 
         let rtt_scan_regions = match &chip.rtt_scan_ranges {
             Some(ranges) => {
@@ -342,6 +350,8 @@ pub enum DebugSequence {
     Arm(Arc<dyn ArmDebugSequence>),
     /// A RISC-V debug sequence.
     Riscv(Arc<dyn RiscvDebugSequence>),
+    /// A MIPS Debug sequence
+    Mips(Arc<dyn MipsDebugSequence>),
 }
 
 pub(crate) trait CoreExt {
