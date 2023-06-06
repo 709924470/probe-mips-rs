@@ -69,7 +69,7 @@ impl TargetDescription {
             },
             CoreType::Armv8m => "armv8-m.main",
             CoreType::Riscv => "riscv:rv32",
-            CoreType::MIPS => "mips32",
+            CoreType::Mips => "mips32",
         };
 
         Self {
@@ -243,7 +243,7 @@ pub fn build_target_description(
             _ => panic!("Inconsistent ISA for Armv8-a: {isa:#?}"),
         },
         CoreType::Riscv => build_riscv_registers(&mut desc, regs),
-        CoreType::MIPS => build_mips_registers(&mut desc, regs),
+        CoreType::Mips => build_mips_registers(&mut desc, regs),
     };
 
     desc

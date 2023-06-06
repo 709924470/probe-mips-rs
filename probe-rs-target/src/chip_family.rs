@@ -43,7 +43,7 @@ pub enum CoreType {
     /// RISC-V
     Riscv,
     /// MIPS family ~release 5
-    MIPS,
+    Mips,
 }
 
 impl CoreType {
@@ -72,7 +72,7 @@ impl CoreType {
     pub fn architecture(&self) -> Architecture {
         match self {
             CoreType::Riscv => Architecture::Riscv,
-            CoreType::MIPS => Architecture::Mips,
+            CoreType::Mips => Architecture::Mips,
             _ => Architecture::Arm,
         }
     }
@@ -238,7 +238,7 @@ impl ChipFamily {
                         }
                     }
                     CoreAccessOptions::Mips(_) => {
-                        if core.core_type != CoreType::MIPS {
+                        if core.core_type != CoreType::Mips {
                             return Err(format!(
                                 "MIPS options don't match core type {:?} on core {}",
                                 core.core_type, core.name

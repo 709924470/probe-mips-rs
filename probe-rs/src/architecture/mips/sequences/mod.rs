@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use super::communication_interface::MIPSCommunicationInterface;
+use super::communication_interface::MipsCommunicationInterface;
 
 pub mod pic32mz;
 
 pub trait MipsDebugSequence: Send + Sync {
-    fn on_connect(&self, _interface: &mut MIPSCommunicationInterface) -> Result<(), crate::Error> {
+    fn on_connect(&self, _interface: &mut MipsCommunicationInterface) -> Result<(), crate::Error> {
         Ok(())
     }
 }

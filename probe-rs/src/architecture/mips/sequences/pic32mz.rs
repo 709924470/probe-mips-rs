@@ -12,7 +12,7 @@ impl PIC32MZ {
 impl MipsDebugSequence for PIC32MZ {
     fn on_connect(
         &self,
-        _interface: &mut crate::architecture::mips::communication_interface::MIPSCommunicationInterface,
+        _interface: &mut crate::architecture::mips::communication_interface::MipsCommunicationInterface,
     ) -> Result<(), crate::Error> {
         tracing::info!("Disabling Memory write protect on pic32mz...");
 
