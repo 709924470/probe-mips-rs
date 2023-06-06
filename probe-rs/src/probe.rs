@@ -11,6 +11,7 @@ pub(crate) mod stlink;
 
 use self::espusbjtag::list_espjtag_devices;
 use crate::architecture::arm::ArmError;
+use crate::architecture::mips::communication_interface::MipsError;
 use crate::architecture::riscv::communication_interface::RiscvError;
 use crate::error::Error;
 use crate::Session;
@@ -25,6 +26,7 @@ use crate::{
             sequences::{ArmDebugSequence, DefaultArmSequence},
             PortType, SwoAccess,
         },
+        mips::communication_interface::MipsCommunicationInterface,
         riscv::communication_interface::RiscvCommunicationInterface,
     },
     Permissions,
@@ -489,6 +491,21 @@ impl Probe {
         }
     }
 
+    /// Try to get a [`MipsCommunicationInterface`], which can
+    /// can be used to communicate with chips using the MIPS
+    /// architecture.
+    ///
+    /// If an error occurs while trying to connect, the probe is returned.
+    pub fn try_into_mips_interface(self) -> Result<MipsCommunicationInterface, (Self, MipsError)> {
+        if !self.attached {
+            Err((self, DebugProbeError::NotAttached.into()))
+        } else {
+            self.inner
+                .try_get_mips_interface()
+                .map_err(|(probe, err)| (Probe::from_attached_probe(probe), err))
+        }
+    }
+
     /// Gets a SWO interface from the debug probe.
     ///
     /// This does not work on all probes.
@@ -628,8 +645,24 @@ pub trait DebugProbe: Send + fmt::Debug {
         ))
     }
 
+    /// Get the dedicated interface to debug MIPS chips. Ensure that the
+    /// probe actually supports this by calling [DebugProbe::has_mips_interface] first.
+    fn try_get_mips_interface(
+        self: Box<Self>,
+    ) -> Result<MipsCommunicationInterface, (Box<dyn DebugProbe>, MipsError)> {
+        Err((
+            self.into_probe(),
+            DebugProbeError::InterfaceNotAvailable("MIPS").into(),
+        ))
+    }
+
     /// Check if the probe offers an interface to debug RISCV chips.
     fn has_riscv_interface(&self) -> bool {
+        false
+    }
+
+    /// Check if the probe offers an interface to debug MIPS chips.
+    fn has_mips_interface(&self) -> bool {
         false
     }
 

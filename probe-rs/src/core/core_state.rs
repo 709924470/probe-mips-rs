@@ -5,6 +5,7 @@ use crate::{
             core::{CortexAState, CortexMState},
             ApAddress, ArmProbeInterface, DpAddress,
         },
+        mips::{communication_interface::MipsCommunicationInterface, MipsState},
         riscv::{communication_interface::RiscvCommunicationInterface, RiscVState},
     },
     Core, CoreType, Error,
@@ -215,6 +216,8 @@ pub enum SpecificCoreState {
     Armv8m(CortexMState),
     /// The state of an RISC-V core.
     Riscv(RiscVState),
+    /// The state of an MIPS core.
+    Mips(MipsState),
 }
 
 impl SpecificCoreState {
@@ -227,6 +230,7 @@ impl SpecificCoreState {
             CoreType::Armv8a => SpecificCoreState::Armv8a(CortexAState::new()),
             CoreType::Armv8m => SpecificCoreState::Armv8m(CortexMState::new()),
             CoreType::Riscv => SpecificCoreState::Riscv(RiscVState::new()),
+            CoreType::Mips => SpecificCoreState::Mips(MipsState::new()),
         }
     }
 
@@ -239,6 +243,7 @@ impl SpecificCoreState {
             SpecificCoreState::Armv8a(_) => CoreType::Armv8a,
             SpecificCoreState::Armv8m(_) => CoreType::Armv8m,
             SpecificCoreState::Riscv(_) => CoreType::Riscv,
+            SpecificCoreState::Mips(_) => CoreType::Mips,
         }
     }
 }

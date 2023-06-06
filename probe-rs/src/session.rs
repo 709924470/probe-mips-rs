@@ -1,6 +1,7 @@
 use crate::architecture::arm::component::get_arm_components;
 use crate::architecture::arm::sequences::{ArmDebugSequence, DefaultArmSequence};
 use crate::architecture::arm::{ArmError, DpAddress};
+use crate::architecture::mips::communication_interface::{MipsCommunicationInterface, MipsError};
 use crate::architecture::riscv::communication_interface::RiscvError;
 use crate::config::{ChipInfo, CoreExt, RegistryError, Target, TargetSelector};
 use crate::core::{Architecture, CombinedCoreState};
@@ -47,6 +48,7 @@ pub struct Session {
 pub(crate) enum ArchitectureInterface {
     Arm(Box<dyn ArmProbeInterface + 'static>),
     Riscv(Box<RiscvCommunicationInterface>),
+    Mips(Box<MipsCommunicationInterface>),
 }
 
 impl fmt::Debug for ArchitectureInterface {
@@ -55,6 +57,10 @@ impl fmt::Debug for ArchitectureInterface {
             ArchitectureInterface::Arm(..) => f.write_str("ArchitectureInterface::Arm(..)"),
             ArchitectureInterface::Riscv(iface) => f
                 .debug_tuple("ArchitectureInterface::Riscv")
+                .field(iface)
+                .finish(),
+            ArchitectureInterface::Mips(iface) => f
+                .debug_tuple("ArchitectureInterface::Mips")
                 .field(iface)
                 .finish(),
         }
@@ -66,6 +72,7 @@ impl From<ArchitectureInterface> for Architecture {
         match value {
             ArchitectureInterface::Arm(_) => Architecture::Arm,
             ArchitectureInterface::Riscv(_) => Architecture::Riscv,
+            ArchitectureInterface::Mips(_) => Architecture::Mips,
         }
     }
 }
@@ -398,6 +405,15 @@ impl Session {
         Ok(interface)
     }
 
+    pub fn get_mips_interface(&mut self) -> Result<&mut MipsCommunicationInterface, MipsError> {
+        let interface = match &mut self.interface {
+            ArchitectureInterface::Mips(iface) => iface,
+            _ => return Err(MipsError::TargetInvalid),
+        };
+
+        Ok(interface)
+    }
+
     #[tracing::instrument(skip_all)]
     fn reattach_arm_interface(
         interface: &mut Box<dyn ArmProbeInterface>,
@@ -581,6 +597,7 @@ impl Session {
         match self.interface {
             ArchitectureInterface::Arm(_) => Architecture::Arm,
             ArchitectureInterface::Riscv(_) => Architecture::Riscv,
+            ArchitectureInterface::Mips(_) => Architecture::Mips,
         }
     }
 

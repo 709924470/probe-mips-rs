@@ -1,6 +1,7 @@
 #![warn(missing_docs)]
 
 use crate::architecture::arm::ArmError;
+use crate::architecture::mips::communication_interface::MipsError;
 use crate::architecture::riscv::communication_interface::RiscvError;
 use crate::config::RegistryError;
 use crate::DebugProbeError;
@@ -17,6 +18,9 @@ pub enum Error {
     /// A RISCV specific error occurred.
     #[error("A RISCV specific error occurred.")]
     Riscv(#[source] RiscvError),
+    /// A MIPS specific error occurred.
+    #[error("A MIPS specific error occurred.")]
+    Mips(#[source] MipsError),
     /// The probe could not be opened.
     #[error("Probe could not be opened: {0}")]
     UnableToOpenProbe(&'static str),
