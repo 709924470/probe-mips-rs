@@ -194,6 +194,14 @@ impl DebugCli {
                             capstone::arch::riscv::ArchExtraMode::RiscVC,
                         ))
                         .build(),
+                    InstructionSet::MIPS32
+                    | InstructionSet::MIPS16e
+                    | InstructionSet::MicroMIPS => Capstone::new()
+                        .mips()
+                        .mode(arch::mips::ArchMode::Mips32)
+                        .endian(Endian::Little)
+                        .extra_mode(std::iter::once(arch::mips::ArchExtraMode::Micro))
+                        .build(),
                 }
                 .map_err(|err| anyhow!("Error creating capstone: {:?}", err))?;
 

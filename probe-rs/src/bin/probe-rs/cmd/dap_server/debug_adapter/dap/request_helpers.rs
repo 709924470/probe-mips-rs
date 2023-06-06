@@ -27,7 +27,10 @@ pub(crate) fn disassemble_target_memory(
     let cs = get_capstone(target_core)?;
     let target_instruction_set = target_core.core.instruction_set()?;
     let instruction_offset_as_bytes = match target_instruction_set {
-        InstructionSet::Thumb2 | InstructionSet::RV32C => {
+        InstructionSet::Thumb2
+        | InstructionSet::RV32C
+        | InstructionSet::MIPS16e
+        | InstructionSet::MicroMIPS => {
             // Since we cannot guarantee the size of individual instructions, let's assume we will read the 120% of the requested number of 16-bit instructions.
             (instruction_offset
                 * target_core
@@ -37,7 +40,10 @@ pub(crate) fn disassemble_target_memory(
                 / 4
                 * 5
         }
-        InstructionSet::A32 | InstructionSet::A64 | InstructionSet::RV32 => {
+        InstructionSet::A32
+        | InstructionSet::A64
+        | InstructionSet::RV32
+        | InstructionSet::MIPS32 => {
             instruction_offset
                 * target_core
                     .core
@@ -258,6 +264,14 @@ pub(crate) fn get_capstone(target_core: &mut CoreHandle) -> Result<Capstone, Deb
                 capstone::arch::riscv::ArchExtraMode::RiscVC,
             ))
             .build(),
+        InstructionSet::MIPS32 | InstructionSet::MIPS16e | InstructionSet::MicroMIPS => {
+            Capstone::new()
+                .mips()
+                .mode(arch::mips::ArchMode::Mips32)
+                .endian(Endian::Little)
+                .extra_mode(std::iter::once(arch::mips::ArchExtraMode::Micro))
+                .build()
+        }
     }
     .map_err(|err| anyhow!("Error creating capstone: {:?}", err))?;
     let _ = cs.set_skipdata(true);

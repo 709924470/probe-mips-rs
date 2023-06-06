@@ -1,5 +1,5 @@
 use super::FlashError;
-use crate::{architecture::riscv, core::Architecture, Target};
+use crate::{architecture::mips, architecture::riscv, core::Architecture, Target};
 use probe_rs_target::{FlashProperties, PageInfo, RamRegion, RawFlashAlgorithm, SectorInfo};
 use std::{cmp::max, convert::TryInto, mem::size_of_val};
 
@@ -163,6 +163,13 @@ impl FlashAlgorithm {
     // Header for RISCV Flash Algorithms
     const RISCV_FLASH_BLOB_HEADER: [u32; 2] = [riscv::assembly::EBREAK, riscv::assembly::EBREAK];
 
+    // MIPS flash algorithms
+    // Same as RISCV, causes a debug debug break
+    const MIPS_FLASH_BLOB_HEADER: [u32; 2] = [
+        mips::assembly::MIPS32_ISA_SDBBP,
+        mips::assembly::MIPS32_ISA_SDBBP,
+    ];
+
     const ARM_FLASH_BLOB_HEADER: [u32; 8] = [
         0xE00A_BE00,
         0x062D_780D,
@@ -187,6 +194,7 @@ impl FlashAlgorithm {
         match architecture {
             Architecture::Arm => &Self::ARM_FLASH_BLOB_HEADER,
             Architecture::Riscv => &Self::RISCV_FLASH_BLOB_HEADER,
+            Architecture::Mips => &Self::MIPS_FLASH_BLOB_HEADER,
         }
     }
 

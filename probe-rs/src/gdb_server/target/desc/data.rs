@@ -69,6 +69,7 @@ impl TargetDescription {
             },
             CoreType::Armv8m => "armv8-m.main",
             CoreType::Riscv => "riscv:rv32",
+            CoreType::MIPS => "mips32",
         };
 
         Self {
@@ -242,6 +243,7 @@ pub fn build_target_description(
             _ => panic!("Inconsistent ISA for Armv8-a: {isa:#?}"),
         },
         CoreType::Riscv => build_riscv_registers(&mut desc, regs),
+        CoreType::MIPS => build_mips_registers(&mut desc, regs),
     };
 
     desc
@@ -338,4 +340,19 @@ fn build_cortex_m_registers(desc: &mut TargetDescription, regs: &CoreRegisters) 
 
     desc.update_register_type("SP", "data_ptr");
     desc.update_register_type("PC", "code_ptr");
+}
+
+fn build_mips_registers(desc: &mut TargetDescription, regs: &RegisterFile) {
+    desc.add_gdb_feature("org.gnu.gdb.mips.cpu");
+    desc.add_registers(regs.platform_registers());
+
+    // Coprocessor 0
+    desc.add_gdb_feature("org.gnu.gdb.mips.cp0");
+    desc.add_registers(regs.other());
+
+    // fpu resgiters
+    if regs.fpu_registers().is_some() {
+        desc.add_gdb_feature("org.gnu.gdb.mips.fpu");
+        desc.add_registers(regs.fpu_registers().unwrap());
+    }
 }

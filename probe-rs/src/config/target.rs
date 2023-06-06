@@ -115,7 +115,7 @@ impl Target {
         let mut debug_sequence = match chip.cores[0].core_type.architecture() {
             Architecture::Arm => DebugSequence::Arm(DefaultArmSequence::create()),
             Architecture::Riscv => DebugSequence::Riscv(DefaultRiscvSequence::create()),
-            Architecture::MIPS => DebugSequence::Mips(DefaultMipsSequence::create()),
+            Architecture::Mips => DebugSequence::Mips(DefaultMipsSequence::create()),
         };
 
         if chip.name.starts_with("MIMXRT10") {
