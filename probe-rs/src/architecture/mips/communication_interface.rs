@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 use super::ejtag::Ejtag;
 
 #[allow(non_camel_case_types)]

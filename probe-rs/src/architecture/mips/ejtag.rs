@@ -1,3 +1,5 @@
+use bitfield::bitfield;
+
 use crate::{probe::JTAGAccess, DebugProbeError};
 
 use super::communication_interface::EjtagVersion;
@@ -116,14 +118,23 @@ const EJTAG_V20_IMP_BCHANNELS_SHIFT: u32 = 1;
 const EJTAG_IMP_MIPS64: u32 = 1 << 0;
 
 impl Ejtag {
-    fn ejtag_enable(&mut self) -> Result<(), DebugProbeError> {
+    fn enter_debug(&mut self) -> Result<(), DebugProbeError> {
         self.probe.set_ir_len(5);
         self.probe
             .write_register(EJTAG_INST_EJTAGBOOT, &[0u8; 32], 32)?;
         Ok(())
     }
 
-    fn ejtag_get_impcode(&mut self) -> Result<(), DebugProbeError> {
+    pub fn get_idcode(&mut self) -> Result<u32, DebugProbeError> {
+        self.idcode = u32::from_le_bytes(
+            self.probe.read_register(EJTAG_INST_IDCODE, 32)?[..4]
+                .try_into()
+                .unwrap(),
+        );
+        Ok(self.idcode)
+    }
+
+    pub fn get_impcode(&mut self) -> Result<u32, DebugProbeError> {
         self.impcode = u32::from_le_bytes(
             self.probe.read_register(EJTAG_INST_IMPCODE, 32)?[..4]
                 .try_into()
@@ -162,6 +173,84 @@ impl Ejtag {
             self.ejtag_dba_step_size = EJTAG_V25_DBAN_STEP;
         }
 
-        Ok(())
+        Ok(self.impcode)
     }
+}
+
+bitfield! {
+    /// The Debug Control register (DCR)
+    struct DebugCtrl(u32);
+    impl Debug;
+
+    enm, _:                29;
+    pcim, _:               26;
+    pc_noasid, _:          25;
+    dasq, _:               24;
+    dasen, _:              23;
+    das, _:                22;
+    fdc_impl, _:           18;
+    data_brk, _:           17;
+    inst_brk, _:           16;
+    ivm, _:                15;
+    dvm, _:                14;
+    rdvec, set_rdvec:   11;
+    cbt, _:                10;
+    pcs, _:                9;
+    pcr, set_pcr:       8, 6;
+    pcse, set_pcs:      5;
+    int_en, set_int:    4;
+    nmi_en, set_nmi:    3;
+    nmi_pend, _:           2;
+    srst_en, set_srst:  1;
+    prob_en, _:            0;
+}
+
+bitfield! {
+    struct ImpCode(u32);
+    impl Debug;
+
+    ejtag_ver, _:           31, 29;
+    dint_impl, _:           24;
+    asid_size, _:           23, 21;
+    mips16, _:              16;
+    no_dma, _:              14;
+    typ, _:                 13, 11;
+    typ_info, _:            10, 1;
+}
+
+bitfield! {
+    struct IDCode(u32);
+    impl Debug;
+
+    version, _:             31, 28;
+    part_no, _:             27, 12;
+    manuf_id, _:            11, 1;
+}
+
+bitfield! {
+    struct EjtagCtrl(u32);
+    impl Debug;
+
+    rocc, set_rocc:         31;
+    psz, _:                 30, 29;
+    vpe_de, _:              23;
+    doze, _:                22;
+    halt, _:                21;
+    per_rst, set_perrst:    20;
+    prnw, _:                19;
+    pracc, set_pracc:       18;
+    prrst, set_prrst:       16;
+    prob_en, set_prob_en:   15;
+    prob_trap, set_trap:    14;
+    ejtag_brk, set_brk:     12;
+    dbg_mode, _:            3;
+}
+
+// fastdata register is omitted, since it only contains 1 single bit spracc r/w able
+
+#[repr(C)]
+pub struct EjtagData {
+    ctrl: [u8; 4],
+    data: [u8; 4],
+    addr: [u8; 4],
 }

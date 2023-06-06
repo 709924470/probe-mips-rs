@@ -64,7 +64,7 @@ pub enum Architecture {
     /// A RISC-V core.
     Riscv,
     /// A MIPS core.
-    MIPS,
+    Mips,
 }
 
 impl CoreType {
@@ -72,7 +72,7 @@ impl CoreType {
     pub fn architecture(&self) -> Architecture {
         match self {
             CoreType::Riscv => Architecture::Riscv,
-            CoreType::MIPS => Architecture::MIPS,
+            CoreType::MIPS => Architecture::Mips,
             _ => Architecture::Arm,
         }
     }
@@ -93,14 +93,10 @@ pub enum InstructionSet {
     RV32C,
     /// MIPS32
     MIPS32,
-    /// MIPS64
-    MIPS64,
     /// MIPS16e with version 2
     MIPS16e,
     /// microMIPS
     MicroMIPS,
-    /// nanoMIPS
-    NanoMIPS,
 }
 
 impl InstructionSet {
@@ -116,9 +112,7 @@ impl InstructionSet {
             InstructionSet::RV32 => 4,
             InstructionSet::RV32C => 2,
             InstructionSet::MIPS32 => 4,
-            InstructionSet::MIPS64 => 4,
             InstructionSet::MIPS16e => 2,
-            InstructionSet::NanoMIPS => 2,
             InstructionSet::MicroMIPS => 2,
         }
     }
@@ -243,7 +237,7 @@ impl ChipFamily {
                             ));
                         }
                     }
-                    CoreAccessOptions::MIPS(_) => {
+                    CoreAccessOptions::Mips(_) => {
                         if core.core_type != CoreType::MIPS {
                             return Err(format!(
                                 "MIPS options don't match core type {:?} on core {}",
