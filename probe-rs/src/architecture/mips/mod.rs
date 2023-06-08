@@ -2,8 +2,8 @@
 use std::time::Duration;
 
 use crate::{
-    error::Error, memory_mapped_bitfield_register, CoreInformation, CoreInterface, MemoryInterface,
-    RegisterFile, RegisterId, RegisterValue,
+    core::CoreRegisters, error::Error, CoreInformation, CoreInterface, CoreRegister,
+    MemoryInterface, RegisterId, RegisterValue,
 };
 use anyhow::Result;
 use probe_rs_target::{Architecture, CoreType, InstructionSet};
@@ -103,12 +103,17 @@ impl<'probe> CoreInterface for Mips32<'probe> {
         todo!()
     }
 
-    fn registers(&self) -> &'static RegisterFile {
+    fn registers(&self) -> &'static CoreRegisters {
         todo!()
     }
 
     fn hw_breakpoints_enabled(&self) -> bool {
         todo!()
+    }
+
+    fn debug_on_sw_breakpoint(&mut self, _enabled: bool) -> Result<(), Error> {
+        // This default will have override methods for architectures that require special behavior, e.g. RISV-V.
+        Ok(())
     }
 
     fn architecture(&self) -> Architecture {
@@ -127,13 +132,24 @@ impl<'probe> CoreInterface for Mips32<'probe> {
         todo!()
     }
 
-    fn debug_on_sw_breakpoint(&mut self, _enabled: bool) -> Result<(), Error> {
-        // This default will have override methods for architectures that require special behavior, e.g. RISV-V.
+    fn on_session_stop(&mut self) -> Result<(), Error> {
         Ok(())
     }
 
-    fn on_session_stop(&mut self) -> Result<(), Error> {
-        Ok(())
+    fn program_counter(&self) -> &'static CoreRegister {
+        todo!()
+    }
+
+    fn frame_pointer(&self) -> &'static CoreRegister {
+        todo!()
+    }
+
+    fn stack_pointer(&self) -> &'static CoreRegister {
+        todo!()
+    }
+
+    fn return_address(&self) -> &'static CoreRegister {
+        todo!()
     }
 }
 

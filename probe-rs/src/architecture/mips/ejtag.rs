@@ -2,7 +2,35 @@ use bitfield::bitfield;
 
 use crate::{probe::JTAGAccess, DebugProbeError};
 
-use super::communication_interface::EjtagVersion;
+use super::communication_interface::MipsError;
+
+#[allow(non_camel_case_types)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum EjtagVersion {
+    NoModule,
+    EJTAG_V20,
+    EJTAG_V25,
+    EJTAG_V26,
+    EJTAG_V31,
+    EJTAG_V41,
+    EJTAG_V51,
+    Unknown(u8),
+}
+
+impl From<u8> for EjtagVersion {
+    fn from(raw: u8) -> Self {
+        match raw {
+            0 => EjtagVersion::EJTAG_V20,
+            1 => EjtagVersion::EJTAG_V25,
+            2 => EjtagVersion::EJTAG_V26,
+            3 => EjtagVersion::EJTAG_V31,
+            4 => EjtagVersion::EJTAG_V41,
+            5 => EjtagVersion::EJTAG_V51,
+            255 => EjtagVersion::NoModule,
+            other => EjtagVersion::Unknown(other),
+        }
+    }
+}
 
 /// This is a direction translation from OpenOCD
 #[derive(Debug)]
@@ -47,6 +75,27 @@ pub struct Ejtag {
     ejtag_iba_step_size: u32,
     ejtag_dba_step_size: u32,
 }
+
+/* ejtag control register bits ECR */
+const EJTAG_CTRL_TOF: u32 = (1 << 1);
+const EJTAG_CTRL_TIF: u32 = (1 << 2);
+const EJTAG_CTRL_BRKST: u32 = (1 << 3);
+const EJTAG_CTRL_DLOCK: u32 = (1 << 5);
+const EJTAG_CTRL_DRWN: u32 = (1 << 9);
+const EJTAG_CTRL_DERR: u32 = (1 << 10);
+const EJTAG_CTRL_DSTRT: u32 = (1 << 11);
+const EJTAG_CTRL_JTAGBRK: u32 = (1 << 12);
+const EJTAG_CTRL_DBGISA: u32 = (1 << 13);
+const EJTAG_CTRL_SETDEV: u32 = (1 << 14);
+const EJTAG_CTRL_PROBEN: u32 = (1 << 15);
+const EJTAG_CTRL_PRRST: u32 = (1 << 16);
+const EJTAG_CTRL_DMAACC: u32 = (1 << 17);
+const EJTAG_CTRL_PRACC: u32 = (1 << 18);
+const EJTAG_CTRL_PRNW: u32 = (1 << 19);
+const EJTAG_CTRL_PERRST: u32 = (1 << 20);
+const EJTAG_CTRL_SYNC: u32 = (1 << 23);
+const EJTAG_CTRL_DNM: u32 = (1 << 28);
+const EJTAG_CTRL_ROCC: u32 = (1 << 31);
 
 const EJTAG_INST_IDCODE: u32 = 0x01;
 const EJTAG_INST_IMPCODE: u32 = 0x03;
@@ -118,6 +167,92 @@ const EJTAG_V20_IMP_BCHANNELS_SHIFT: u32 = 1;
 const EJTAG_IMP_MIPS64: u32 = 1 << 0;
 
 impl Ejtag {
+    pub fn new(mut probe: Box<dyn JTAGAccess>) -> Result<Self, (Box<dyn JTAGAccess>, MipsError)> {
+        // EJTAG instructions are 5 bits
+        probe.set_ir_len(5);
+        let idcode = u32::from_le_bytes(match probe.read_register(EJTAG_INST_IDCODE, 32) {
+            Ok(val) => val[..4].try_into().unwrap(),
+            Err(e) => {
+                return Err((probe, e.into()));
+            }
+        });
+        let impcode = u32::from_le_bytes(match probe.read_register(EJTAG_INST_IMPCODE, 32) {
+            Ok(val) => val[..4].try_into().unwrap(),
+            Err(e) => {
+                return Err((probe, e.into()));
+            }
+        });
+        let ejtag_version = EjtagVersion::from(((impcode >> 29) & 0x07) as u8);
+
+        let mut this = Self {
+            probe,
+            idcode,
+            impcode,
+            ejtag_ctrl: EJTAG_CTRL_PRACC | EJTAG_CTRL_PROBEN,
+            ejtag_version,
+            fast_access_save: 0,
+            config_regs: 0,
+            config: [0, 0, 0, 0],
+            reg_t0: 0,
+            reg_t1: 0,
+            scan_delay: 0,
+            mode: 0,
+            pa_ctrl: 0,
+            pa_addr: 0,
+            isa: (impcode & EJTAG_IMP_MIPS16),
+            endianness: 0,
+            debug_caps: 0,
+            ejtag_ibs_addr: 0,
+            ejtag_iba0_addr: 0,
+            ejtag_ibc_offs: 0,
+            ejtag_ibm_offs: 0,
+            ejtag_ibasid_offs: 0,
+            ejtag_dbs_addr: 0,
+            ejtag_dba0_addr: 0,
+            ejtag_dbc_offs: 0,
+            ejtag_dbm_offs: 0,
+            ejtag_dbv_offs: 0,
+            ejtag_dbasid_offs: 0,
+            ejtag_iba_step_size: 0,
+            ejtag_dba_step_size: 0,
+        };
+
+        if ejtag_version == EjtagVersion::EJTAG_V20 {
+            this.ejtag_ibs_addr = EJTAG_V20_IBS;
+            this.ejtag_iba0_addr = EJTAG_V20_IBA0;
+            this.ejtag_ibc_offs = EJTAG_V20_IBC_OFFS;
+            this.ejtag_ibm_offs = EJTAG_V20_IBM_OFFS;
+
+            this.ejtag_dbs_addr = EJTAG_V20_DBS;
+            this.ejtag_dba0_addr = EJTAG_V20_DBA0;
+            this.ejtag_dbc_offs = EJTAG_V20_DBC_OFFS;
+            this.ejtag_dbm_offs = EJTAG_V20_DBM_OFFS;
+            this.ejtag_dbv_offs = EJTAG_V20_DBV_OFFS;
+
+            this.ejtag_iba_step_size = EJTAG_V20_IBAN_STEP;
+            this.ejtag_dba_step_size = EJTAG_V20_DBAN_STEP;
+        } else {
+            this.ejtag_ibs_addr = EJTAG_V25_IBS;
+            this.ejtag_iba0_addr = EJTAG_V25_IBA0;
+            this.ejtag_ibm_offs = EJTAG_V25_IBM_OFFS;
+            this.ejtag_ibasid_offs = EJTAG_V25_IBASID_OFFS;
+            this.ejtag_ibc_offs = EJTAG_V25_IBC_OFFS;
+
+            this.ejtag_dbs_addr = EJTAG_V25_DBS;
+            this.ejtag_dba0_addr = EJTAG_V25_DBA0;
+            this.ejtag_dbm_offs = EJTAG_V25_DBM_OFFS;
+            this.ejtag_dbasid_offs = EJTAG_V25_DBASID_OFFS;
+            this.ejtag_dbc_offs = EJTAG_V25_DBC_OFFS;
+            this.ejtag_dbv_offs = EJTAG_V25_DBV_OFFS;
+
+            this.ejtag_iba_step_size = EJTAG_V25_IBAN_STEP;
+            this.ejtag_dba_step_size = EJTAG_V25_DBAN_STEP;
+
+            this.ejtag_ctrl |= EJTAG_CTRL_ROCC | EJTAG_CTRL_SETDEV;
+        }
+
+        Ok(this)
+    }
     fn enter_debug(&mut self) -> Result<(), DebugProbeError> {
         self.probe.set_ir_len(5);
         self.probe

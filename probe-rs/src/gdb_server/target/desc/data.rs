@@ -342,9 +342,9 @@ fn build_cortex_m_registers(desc: &mut TargetDescription, regs: &CoreRegisters) 
     desc.update_register_type("PC", "code_ptr");
 }
 
-fn build_mips_registers(desc: &mut TargetDescription, regs: &RegisterFile) {
+fn build_mips_registers(desc: &mut TargetDescription, regs: &CoreRegisters) {
     desc.add_gdb_feature("org.gnu.gdb.mips.cpu");
-    desc.add_registers(regs.platform_registers());
+    desc.add_registers(regs.core_registers());
 
     // Coprocessor 0
     desc.add_gdb_feature("org.gnu.gdb.mips.cp0");
