@@ -8,7 +8,8 @@ use crate::{
         mips::{communication_interface::MipsCommunicationInterface, MipsState},
         riscv::{communication_interface::RiscvCommunicationInterface, RiscVState},
     },
-    Core, CoreType, Error,
+    probe::JTAGAccess,
+    Core, CoreType, Error, Target,
 };
 pub use probe_rs_target::{Architecture, CoreAccessOptions};
 

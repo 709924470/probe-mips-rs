@@ -6,28 +6,28 @@ use crate::{
     CoreRegister,
 };
 
-const PC: CoreRegister = CoreRegister {
+pub const PC: CoreRegister = CoreRegister {
     name: "pc",
     role: Some(RegisterRole::ProgramCounter),
     id: RegisterId(37),
     data_type: RegisterDataType::UnsignedInteger(32),
 };
 
-const SP: CoreRegister = CoreRegister {
+pub const SP: CoreRegister = CoreRegister {
     name: "sp",
     role: Some(RegisterRole::StackPointer),
     id: RegisterId(29),
     data_type: RegisterDataType::UnsignedInteger(32),
 };
 
-const FP: CoreRegister = CoreRegister {
+pub const FP: CoreRegister = CoreRegister {
     name: "fp",
     role: Some(RegisterRole::FramePointer),
     id: RegisterId(30),
     data_type: RegisterDataType::UnsignedInteger(32),
 };
 
-const RA: CoreRegister = CoreRegister {
+pub const RA: CoreRegister = CoreRegister {
     name: "ra",
     role: Some(RegisterRole::ReturnAddress),
     id: RegisterId(31),
@@ -41,10 +41,26 @@ const STATUS: CoreRegister = CoreRegister {
     data_type: RegisterDataType::UnsignedInteger(32),
 };
 
-pub(crate) static RISCV_CORE_REGSISTERS: Lazy<CoreRegisters> =
-    Lazy::new(|| CoreRegisters::new(RISCV_REGISTERS_SET.iter().collect()));
+pub(crate) static MIPS32_CORE_REGSISTERS: Lazy<CoreRegisters> = Lazy::new(|| {
+    CoreRegisters::new(
+        MIPS32_REGISTERS_SET
+            .iter()
+            .chain(MIPS32_COP0_REGISTERS)
+            .collect(),
+    )
+});
 
-static RISCV_REGISTERS_SET: &[CoreRegister] = &[
+pub(crate) static MIPS32_WITH_FPU_CORE_REGSISTERS: Lazy<CoreRegisters> = Lazy::new(|| {
+    CoreRegisters::new(
+        MIPS32_REGISTERS_SET
+            .iter()
+            .chain(MIPS32_FPU_REGISTERS)
+            .chain(MIPS32_COP0_REGISTERS)
+            .collect(),
+    )
+});
+
+static MIPS32_REGISTERS_SET: &[CoreRegister] = &[
     CoreRegister {
         name: "r0",
         role: Some(RegisterRole::Other("zero")),
@@ -237,7 +253,7 @@ static RISCV_REGISTERS_SET: &[CoreRegister] = &[
     PC,
 ];
 
-static MIPS_FPU_REGISTERS: &[CoreRegister] = &[
+static MIPS32_FPU_REGISTERS: &[CoreRegister] = &[
     CoreRegister {
         name: "f0",
         role: Some(RegisterRole::FloatingPoint),
@@ -444,7 +460,7 @@ static MIPS_FPU_REGISTERS: &[CoreRegister] = &[
     },
 ];
 
-static MIPS_COP0_REGISTERS: &[CoreRegister] = &[
+static MIPS32_COP0_REGISTERS: &[CoreRegister] = &[
     CoreRegister {
         name: "cp0.0.0",
         role: Some(RegisterRole::Other("index")),

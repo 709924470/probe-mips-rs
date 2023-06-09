@@ -1,6 +1,8 @@
 #![allow(missing_docs)]
 use super::ejtag::{Ejtag, EjtagVersion};
-use crate::{DebugProbeError, Error as ProbeRsError};
+use crate::{
+    memory_mapped_bitfield_register, DebugProbeError, Error as ProbeRsError, MemoryMappedRegister,
+};
 
 /// Some error occurered when working with the MIPS core.
 /// Comes from Codescape python api
@@ -73,6 +75,93 @@ pub struct MipsCommunicationInterfaceState {
 
 #[derive(Debug)]
 pub struct MipsCommunicationInterface {
-    ejtag: Ejtag,
-    state: MipsCommunicationInterfaceState,
+    pub ejtag: Ejtag,
+    pub state: MipsCommunicationInterfaceState,
+}
+
+pub trait MultipleRegisterOffsets<T>: MemoryMappedRegister<T> {
+    const N_OFFSET: u32;
+
+    fn get_mmio_address_by_id(base_address: u64, index: u32) -> Result<u64, anyhow::Error> {
+        if let Some(actual_offset) =
+            Self::ADDRESS_OFFSET.checked_add((Self::N_OFFSET * index).into())
+        {
+            if let Some(actual_address) = base_address.checked_add(actual_offset) {
+                return Ok(actual_address);
+            }
+        }
+        Err(
+            anyhow::anyhow!(
+                "Overflow while calculating the MMIO address for {}{} at offset {:#x} from base address {:#x}", 
+                Self::NAME, 
+                index, 
+                Self::ADDRESS_OFFSET, 
+                base_address
+            )
+        )
+    }
+}
+
+memory_mapped_bitfield_register! {
+    struct IBS(u32);
+    0x1000, "ibs",
+    impl From;
+
+    asid_up, _: 30;
+    bcn, _: 27, 24;
+    bp3, set_bp3: 3;
+    bp2, set_bp2: 2;
+    bp1, set_bp1: 1;
+    bp0, set_bp0: 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct IBA(u32);
+    0x1100, "iba",
+    impl From;
+
+    iba, set_iba: 31, 1;
+    isa, set_isa: 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct IBM(u32);
+    0x1108, "ibm",
+    impl From;
+
+    ibm, set_ibm: 31, 1;
+    isam, set_isam: 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct IBASID(u32);
+    0x1110, "ibasid",
+    impl From;
+
+    asid, set_asid: 7, 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct IBC(u32);
+    0x1118, "ibc",
+    impl From;
+
+    tc, set_tc: 31, 24;
+    asid_use, set_asid_use: 23;
+    tc_use, _: 22;
+    te, set_te: 2;
+    be, set_be: 0;
+}
+
+impl MultipleRegisterOffsets<u32> for IBA {
+const N_OFFSET: u32 = 0x100;
+}
+impl MultipleRegisterOffsets<u32> for IBM {
+const N_OFFSET: u32 = 0x100;
+}
+impl MultipleRegisterOffsets<u32> for IBASID {
+const N_OFFSET: u32 = 0x100;
+}
+impl MultipleRegisterOffsets<u32> for IBC {
+const N_OFFSET: u32 = 0x100;
 }

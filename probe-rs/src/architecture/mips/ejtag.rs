@@ -1,8 +1,8 @@
 use bitfield::bitfield;
 
-use crate::{probe::JTAGAccess, DebugProbeError};
+use crate::{memory_mapped_bitfield_register, probe::JTAGAccess, DebugProbeError};
 
-use super::communication_interface::MipsError;
+use super::{communication_interface::MipsError, DebugCtrl, EjtagCtrl, IDCode, ImpCode};
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -36,44 +36,45 @@ impl From<u8> for EjtagVersion {
 #[derive(Debug)]
 pub struct Ejtag {
     pub probe: Box<dyn JTAGAccess>,
-    idcode: u32,
-    impcode: u32,
-    ejtag_ctrl: u32,
-    ejtag_version: EjtagVersion,
-    fast_access_save: i32,
+    pub idcode: IDCode,
+    pub impcode: ImpCode,
+    pub debug_ctrl: DebugCtrl,
+    pub ejtag_ctrl: EjtagCtrl,
+    pub ejtag_version: EjtagVersion,
+    pub fast_access_save: i32,
 
-    config_regs: u32,
-    config: [u32; 4],
+    pub config_regs: u32,
+    pub config: [u32; 4],
 
     /// Saves temp register contents
-    reg_t0: u32,
-    reg_t1: u32,
+    pub reg_t0: u32,
+    pub reg_t1: u32,
 
-    scan_delay: u32,
-    mode: i32,
+    pub scan_delay: u32,
+    pub mode: i32,
 
-    pa_ctrl: u32,
-    pa_addr: u32,
+    pub pa_ctrl: u32,
+    pub pa_addr: u32,
 
-    isa: u32,
-    endianness: u8,
+    pub isa: u32,
+    pub endianness: u8,
 
-    debug_caps: u32,
-    ejtag_ibs_addr: u32,
-    ejtag_iba0_addr: u32,
-    ejtag_ibc_offs: u32,
-    ejtag_ibm_offs: u32,
-    ejtag_ibasid_offs: u32,
+    pub debug_caps: u32,
+    pub ejtag_ibs_addr: u32,
+    pub ejtag_iba0_addr: u32,
+    pub ejtag_ibc_offs: u32,
+    pub ejtag_ibm_offs: u32,
+    pub ejtag_ibasid_offs: u32,
 
-    ejtag_dbs_addr: u32,
-    ejtag_dba0_addr: u32,
-    ejtag_dbc_offs: u32,
-    ejtag_dbm_offs: u32,
-    ejtag_dbv_offs: u32,
-    ejtag_dbasid_offs: u32,
+    pub ejtag_dbs_addr: u32,
+    pub ejtag_dba0_addr: u32,
+    pub ejtag_dbc_offs: u32,
+    pub ejtag_dbm_offs: u32,
+    pub ejtag_dbv_offs: u32,
+    pub ejtag_dbasid_offs: u32,
 
-    ejtag_iba_step_size: u32,
-    ejtag_dba_step_size: u32,
+    pub ejtag_iba_step_size: u32,
+    pub ejtag_dba_step_size: u32,
 }
 
 /* ejtag control register bits ECR */
@@ -184,11 +185,19 @@ impl Ejtag {
         });
         let ejtag_version = EjtagVersion::from(((impcode >> 29) & 0x07) as u8);
 
+        let ejtag_ctrl = u32::from_le_bytes(match probe.read_register(EJTAG_INST_CONTROL, 32) {
+            Ok(val) => val[..4].try_into().unwrap(),
+            Err(e) => {
+                return Err((probe, e.into()));
+            }
+        });
+
         let mut this = Self {
             probe,
-            idcode,
-            impcode,
-            ejtag_ctrl: EJTAG_CTRL_PRACC | EJTAG_CTRL_PROBEN,
+            idcode: IDCode(idcode),
+            impcode: ImpCode(impcode),
+            debug_ctrl: DebugCtrl(0),
+            ejtag_ctrl: EjtagCtrl(ejtag_ctrl),
             ejtag_version,
             fast_access_save: 0,
             config_regs: 0,
@@ -247,8 +256,6 @@ impl Ejtag {
 
             this.ejtag_iba_step_size = EJTAG_V25_IBAN_STEP;
             this.ejtag_dba_step_size = EJTAG_V25_DBAN_STEP;
-
-            this.ejtag_ctrl |= EJTAG_CTRL_ROCC | EJTAG_CTRL_SETDEV;
         }
 
         Ok(this)
@@ -259,133 +266,7 @@ impl Ejtag {
             .write_register(EJTAG_INST_EJTAGBOOT, &[0u8; 32], 32)?;
         Ok(())
     }
-
-    pub fn get_idcode(&mut self) -> Result<u32, DebugProbeError> {
-        self.idcode = u32::from_le_bytes(
-            self.probe.read_register(EJTAG_INST_IDCODE, 32)?[..4]
-                .try_into()
-                .unwrap(),
-        );
-        Ok(self.idcode)
+    pub fn supports_hardware_breakpoint(self) -> bool {
+        self.debug_ctrl.inst_brk()
     }
-
-    pub fn get_impcode(&mut self) -> Result<u32, DebugProbeError> {
-        self.impcode = u32::from_le_bytes(
-            self.probe.read_register(EJTAG_INST_IMPCODE, 32)?[..4]
-                .try_into()
-                .unwrap(),
-        );
-        self.ejtag_version = EjtagVersion::from(((self.impcode >> 29) & 0x07) as u8);
-        if self.ejtag_version == EjtagVersion::EJTAG_V20 {
-            self.ejtag_ibs_addr = EJTAG_V20_IBS;
-            self.ejtag_iba0_addr = EJTAG_V20_IBA0;
-            self.ejtag_ibc_offs = EJTAG_V20_IBC_OFFS;
-            self.ejtag_ibm_offs = EJTAG_V20_IBM_OFFS;
-
-            self.ejtag_dbs_addr = EJTAG_V20_DBS;
-            self.ejtag_dba0_addr = EJTAG_V20_DBA0;
-            self.ejtag_dbc_offs = EJTAG_V20_DBC_OFFS;
-            self.ejtag_dbm_offs = EJTAG_V20_DBM_OFFS;
-            self.ejtag_dbv_offs = EJTAG_V20_DBV_OFFS;
-
-            self.ejtag_iba_step_size = EJTAG_V20_IBAN_STEP;
-            self.ejtag_dba_step_size = EJTAG_V20_DBAN_STEP;
-        } else {
-            self.ejtag_ibs_addr = EJTAG_V25_IBS;
-            self.ejtag_iba0_addr = EJTAG_V25_IBA0;
-            self.ejtag_ibm_offs = EJTAG_V25_IBM_OFFS;
-            self.ejtag_ibasid_offs = EJTAG_V25_IBASID_OFFS;
-            self.ejtag_ibc_offs = EJTAG_V25_IBC_OFFS;
-
-            self.ejtag_dbs_addr = EJTAG_V25_DBS;
-            self.ejtag_dba0_addr = EJTAG_V25_DBA0;
-            self.ejtag_dbm_offs = EJTAG_V25_DBM_OFFS;
-            self.ejtag_dbasid_offs = EJTAG_V25_DBASID_OFFS;
-            self.ejtag_dbc_offs = EJTAG_V25_DBC_OFFS;
-            self.ejtag_dbv_offs = EJTAG_V25_DBV_OFFS;
-
-            self.ejtag_iba_step_size = EJTAG_V25_IBAN_STEP;
-            self.ejtag_dba_step_size = EJTAG_V25_DBAN_STEP;
-        }
-
-        Ok(self.impcode)
-    }
-}
-
-bitfield! {
-    /// The Debug Control register (DCR)
-    struct DebugCtrl(u32);
-    impl Debug;
-
-    enm, _:                29;
-    pcim, _:               26;
-    pc_noasid, _:          25;
-    dasq, _:               24;
-    dasen, _:              23;
-    das, _:                22;
-    fdc_impl, _:           18;
-    data_brk, _:           17;
-    inst_brk, _:           16;
-    ivm, _:                15;
-    dvm, _:                14;
-    rdvec, set_rdvec:   11;
-    cbt, _:                10;
-    pcs, _:                9;
-    pcr, set_pcr:       8, 6;
-    pcse, set_pcs:      5;
-    int_en, set_int:    4;
-    nmi_en, set_nmi:    3;
-    nmi_pend, _:           2;
-    srst_en, set_srst:  1;
-    prob_en, _:            0;
-}
-
-bitfield! {
-    struct ImpCode(u32);
-    impl Debug;
-
-    ejtag_ver, _:           31, 29;
-    dint_impl, _:           24;
-    asid_size, _:           23, 21;
-    mips16, _:              16;
-    no_dma, _:              14;
-    typ, _:                 13, 11;
-    typ_info, _:            10, 1;
-}
-
-bitfield! {
-    struct IDCode(u32);
-    impl Debug;
-
-    version, _:             31, 28;
-    part_no, _:             27, 12;
-    manuf_id, _:            11, 1;
-}
-
-bitfield! {
-    struct EjtagCtrl(u32);
-    impl Debug;
-
-    rocc, set_rocc:         31;
-    psz, _:                 30, 29;
-    vpe_de, _:              23;
-    doze, _:                22;
-    halt, _:                21;
-    per_rst, set_perrst:    20;
-    prnw, _:                19;
-    pracc, set_pracc:       18;
-    prrst, set_prrst:       16;
-    prob_en, set_prob_en:   15;
-    prob_trap, set_trap:    14;
-    ejtag_brk, set_brk:     12;
-    dbg_mode, _:            3;
-}
-
-// fastdata register is omitted, since it only contains 1 single bit spracc r/w able
-
-#[repr(C)]
-pub struct EjtagData {
-    ctrl: [u8; 4],
-    data: [u8; 4],
-    addr: [u8; 4],
 }
