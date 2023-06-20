@@ -311,6 +311,8 @@ pub enum Error {
     RequestFailed,
     #[error("input value invalid: {0}")]
     InvalidInput(&'static str),
+    #[error("signal layout value invalid")]
+    InvalidLayout,
     #[error("I/O error: {0}")]
     Io(io::Error),
 

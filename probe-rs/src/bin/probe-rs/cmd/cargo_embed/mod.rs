@@ -181,6 +181,7 @@ fn main_try(mut args: Vec<OsString>, offset: UtcOffset) -> Result<()> {
                     vendor_id: u16::from_str_radix(vid, 16)?,
                     product_id: u16::from_str_radix(pid, 16)?,
                     serial_number: config.probe.serial.clone(),
+                    ftdi_options: config.probe.ftdi_options.clone(),
                 };
                 // if two probes with the same VID:PID pair exist we just choose one
                 Probe::open(selector)?

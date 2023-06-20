@@ -3,7 +3,7 @@ use crate::architecture::{
     arm::communication_interface::UninitializedArmProbe,
     riscv::communication_interface::RiscvCommunicationInterface,
 };
-use crate::probe::{JTAGAccess, ProbeCreationError, ScanChainElement};
+use crate::probe::{FtdiOption, JTAGAccess, ProbeCreationError, ScanChainElement};
 use crate::{
     DebugProbe, DebugProbeError, DebugProbeInfo, DebugProbeSelector, DebugProbeType, WireProtocol,
 };
@@ -37,14 +37,55 @@ pub(super) struct ChainParams {
     irlen: usize,
 }
 
+#[allow(clippy::upper_case_acronyms, non_snake_case)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Signal {
+    name: String,
+    data: u16,
+    dir: bool,
+}
+
+impl Signal {
+    fn name_eq(&self, name: &'static str) -> bool {
+        self.name == name
+    }
+}
+
+pub trait GetSignal {
+    fn get_signal_by_name(&self, name: String) -> Option<&Signal>;
+}
+
+impl GetSignal for Vec<Signal> {
+    fn get_signal_by_name(&self, name: String) -> Option<&Signal> {
+        self.iter().find(|x| x.name_eq(&name))
+    }
+}
+
+impl From<(String, u16, bool)> for Signal {
+    fn from(value: (String, u16, bool)) -> Self {
+        Self {
+            name: value.0,
+            data: value.1,
+            dir: value.2,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct JtagAdapter {
     device: ftdi::Device,
     chain_params: Option<ChainParams>,
+    pin_layout: (u16, u16),
+    signals: Vec<Signal>,
 }
 
 impl JtagAdapter {
-    pub fn open(vid: u16, pid: u16) -> Result<Self, ftdi::Error> {
+    pub fn open(
+        vid: u16,
+        pid: u16,
+        pin_layout: (u16, u16),
+        signals: Vec<Signal>,
+    ) -> Result<Self, ftdi::Error> {
         let mut builder = ftdi::Builder::new();
         builder.set_interface(ftdi::Interface::A)?;
         let device = builder.usb_open(vid, pid)?;
@@ -52,6 +93,8 @@ impl JtagAdapter {
         Ok(Self {
             device,
             chain_params: None,
+            pin_layout,
+            signals,
         })
     }
 
@@ -64,9 +107,9 @@ impl JtagAdapter {
         let mut junk = vec![];
         let _ = self.device.read_to_end(&mut junk);
 
-        // Minimal values, may not work with all probes
-        let output: u16 = 0x0008;
-        let direction: u16 = 0x000b;
+        // These values are configured by config.probe.pin_layout
+        let output: u16 = self.pin_layout.0;
+        let direction: u16 = self.pin_layout.1;
         self.device
             .write_all(&[0x80, output as u8, direction as u8])?;
         self.device
@@ -208,6 +251,13 @@ impl JtagAdapter {
     /// Reset and go to RUN-TEST/IDLE
     pub fn reset(&mut self) -> io::Result<()> {
         self.shift_tms(&[0xff, 0xff, 0xff, 0xff, 0x7f], 40)
+    }
+
+    pub fn device_reset(&mut self) -> io::Result<()> {
+        let srst = self.signals.get_signal_by_variant("nSRST");
+        let trst = self.signals.get_signal_by_variant("nTRST");
+
+        tracing::trace!("reset target device with")
     }
 
     /// Execute RUN-TEST/IDLE for a number of cycles
@@ -434,6 +484,7 @@ impl DebugProbe for FtdiProbe {
         let DebugProbeSelector {
             vendor_id,
             product_id,
+            ftdi_options,
             ..
         } = selector.into();
 
@@ -443,8 +494,21 @@ impl DebugProbe for FtdiProbe {
                 ProbeCreationError::NotFound,
             ));
         }
+        let Some(FtdiOption {
+            pin_layout, signals
+        }) = ftdi_options else {
+            return Err(DebugProbeError::ProbeSpecific(ftdi::Error::InvalidLayout.into()));
+        };
+        let Some(pin_layout) = pin_layout else {
+            return Err(DebugProbeError::ProbeSpecific(ftdi::Error::InvalidLayout.into()));
+        };
+        let Some(signals) = signals else {
+            return Err(DebugProbeError::ProbeSpecific(ftdi::Error::InvalidLayout.into()));
+        };
 
-        let adapter = JtagAdapter::open(vendor_id, product_id)
+        let signals = signals.into_iter().map(Signal::from).collect();
+
+        let adapter = JtagAdapter::open(vendor_id, product_id, pin_layout, signals)
             .map_err(|e| DebugProbeError::ProbeSpecific(Box::new(e)))?;
 
         let probe = FtdiProbe {
@@ -563,6 +627,10 @@ impl DebugProbe for FtdiProbe {
     }
 
     fn has_riscv_interface(&self) -> bool {
+        true
+    }
+
+    fn has_mips_interface(&self) -> bool {
         true
     }
 
@@ -807,6 +875,7 @@ fn get_device_info(device: &rusb::Device<rusb::Context>) -> Option<DebugProbeInf
         serial_number: sn_str,
         probe_type: DebugProbeType::Ftdi,
         hid_interface: None,
+        ftdi_options: None,
     })
 }
 

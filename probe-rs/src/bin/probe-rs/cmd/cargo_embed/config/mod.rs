@@ -4,6 +4,7 @@ use figment::{
     Figment,
 };
 use probe_rs::rtt::ChannelMode;
+use probe_rs::FtdiOption;
 use probe_rs::WireProtocol;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, time::Duration};
@@ -37,6 +38,7 @@ pub struct Probe {
     pub serial: Option<String>,
     pub protocol: WireProtocol,
     pub speed: Option<u32>,
+    pub ftdi_options: Option<Vec<FtdiOption>>,
 }
 
 /// The flashing config struct holding all the possible flashing options.

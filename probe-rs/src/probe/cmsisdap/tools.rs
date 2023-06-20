@@ -117,6 +117,7 @@ fn get_cmsisdap_info(device: &Device<rusb::Context>) -> Option<DebugProbeInfo> {
             serial_number: sn_str,
             probe_type: DebugProbeType::CmsisDap,
             hid_interface,
+            ftdi_options: None,
         })
     } else {
         None
@@ -142,6 +143,7 @@ fn get_cmsisdap_hid_info(device: &hidapi::DeviceInfo) -> Option<DebugProbeInfo> 
             serial_number: device.serial_number().map(|s| s.to_owned()),
             probe_type: DebugProbeType::CmsisDap,
             hid_interface: Some(device.interface_number() as u8),
+            ftdi_options: None,
         })
     } else {
         None

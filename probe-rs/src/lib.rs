@@ -105,3 +105,4 @@ pub use crate::session::{Permissions, Session};
 
 // TODO: Hide behind feature
 pub use crate::probe::fake_probe::FakeProbe;
+pub use crate::probe::FtdiOption;

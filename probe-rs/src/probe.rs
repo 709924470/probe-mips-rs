@@ -75,6 +75,25 @@ impl std::str::FromStr for WireProtocol {
     }
 }
 
+/// The options for FTDI devices.
+///
+/// Specifies the pin layout and their output direction, also the signal
+/// pin masks, this is an attempt for mimicing openocd's ftdi device
+/// option initialization parameters.
+///
+/// * This might be better hide behind the ftdi feature.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct FtdiOption {
+    /// The pin layout(output, direction) for FTDI devices.
+    pub pin_layout: Option<(u16, u16)>,
+    /// The signal masks for FTDI devices.
+    #[cfg(feature = "ftdi")]
+    pub signals: Option<Vec<Signals>>,
+    /// The signal masks for FTDI devices
+    #[cfg(not(feature = "ftdi"))]
+    pub signals: Option<Vec<String>>,
+}
+
 /// A command queued in a batch for later execution
 ///
 /// Mostly used internally but returned in DebugProbeError to indicate
@@ -491,6 +510,12 @@ impl Probe {
         }
     }
 
+    /// Check if the probe has an interface to
+    /// debug RISCV chips.
+    pub fn has_mips_interface(&self) -> bool {
+        self.inner.has_mips_interface()
+    }
+
     /// Try to get a [`MipsCommunicationInterface`], which can
     /// can be used to communicate with chips using the MIPS
     /// architecture.
@@ -729,6 +754,9 @@ pub struct DebugProbeInfo {
     /// The USB HID interface which should be used.
     /// This is necessary for composite HID devices.
     pub hid_interface: Option<u8>,
+
+    /// Options for FTDI devices
+    pub ftdi_options: Option<FtdiOption>,
 }
 
 impl std::fmt::Debug for DebugProbeInfo {
@@ -742,7 +770,7 @@ impl std::fmt::Debug for DebugProbeInfo {
             self.serial_number
                 .clone()
                 .map_or("".to_owned(), |v| format!("Serial: {v}, ")),
-            self.probe_type
+            self.probe_type,
         )
     }
 }
@@ -764,6 +792,28 @@ impl DebugProbeInfo {
             serial_number,
             probe_type,
             hid_interface: usb_hid_interface,
+            ftdi_options: None,
+        }
+    }
+
+    #[cfg(feature = "ftdi")]
+    pub fn new_with_ftdi<S: Into<String>>(
+        identifier: S,
+        vendor_id: u16,
+        product_id: u16,
+        serial_number: Option<String>,
+        probe_type: DebugProbeType,
+        usb_hid_interface: Option<u8>,
+        ftdi_options: Option<FtdiOption>,
+    ) -> Self {
+        Self {
+            identifier: identifier.into(),
+            vendor_id,
+            product_id,
+            serial_number,
+            probe_type,
+            hid_interface: usb_hid_interface,
+            ftdi_options,
         }
     }
 
@@ -807,6 +857,8 @@ pub struct DebugProbeSelector {
     pub product_id: u16,
     /// The the serial number of the debug probe to be used.
     pub serial_number: Option<String>,
+    /// Options for FTDI devices
+    pub ftdi_options: Option<FtdiOption>,
 }
 
 impl TryFrom<&str> for DebugProbeSelector {
@@ -818,6 +870,7 @@ impl TryFrom<&str> for DebugProbeSelector {
                 vendor_id: u16::from_str_radix(split[0], 16)?,
                 product_id: u16::from_str_radix(split[1], 16)?,
                 serial_number: None,
+                ftdi_options: None,
             }
         } else {
             return Err(DebugProbeSelectorParseError::Format);
@@ -851,6 +904,7 @@ impl From<DebugProbeInfo> for DebugProbeSelector {
             vendor_id: selector.vendor_id,
             product_id: selector.product_id,
             serial_number: selector.serial_number,
+            ftdi_options: selector.ftdi_options,
         }
     }
 }
@@ -861,6 +915,7 @@ impl From<&DebugProbeInfo> for DebugProbeSelector {
             vendor_id: selector.vendor_id,
             product_id: selector.product_id,
             serial_number: selector.serial_number.clone(),
+            ftdi_options: selector.ftdi_options.clone(),
         }
     }
 }
