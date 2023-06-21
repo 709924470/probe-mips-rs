@@ -294,6 +294,47 @@ impl Session {
         Ok(session)
     }
 
+    fn attach_mips(
+        mut probe: Probe,
+        target: Target,
+        _attach_method: AttachMethod,
+        _permissions: Permissions,
+        cores: Vec<CombinedCoreState>,
+    ) -> Result<Self, Error> {
+        // TODO: Handle attach under reset
+
+        let sequence_handle = match &target.debug_sequence {
+            DebugSequence::Mips(sequence) => sequence.clone(),
+            DebugSequence::Arm(_) | DebugSequence::Riscv(_) => {
+                panic!("Mismatch between architecture and sequence type!")
+            }
+        };
+
+        probe.inner_attach()?;
+
+        let interface = probe
+            .try_into_mips_interface()
+            .map_err(|(_probe, err)| err)?;
+
+        let mut session = Session {
+            target,
+            interface: ArchitectureInterface::Mips(Box::new(interface)),
+            cores,
+            configured_trace_sink: None,
+        };
+
+        {
+            // Todo: Add multicore support. How to deal with any cores that are not active and won't respond?
+            let mut core = session.core(0)?;
+
+            core.halt(Duration::from_millis(100))?;
+        }
+
+        sequence_handle.on_connect(session.get_mips_interface()?)?;
+
+        Ok(session)
+    }
+
     /// Automatically creates a session with the first connected probe found.
     #[tracing::instrument(skip(target))]
     pub fn auto_attach(
@@ -364,8 +405,8 @@ impl Session {
             }
 
             TraceSink::TraceMemory => {
-                let components = self.get_arm_components(DpAddress::Default)?;
                 let interface = self.get_arm_interface()?;
+                let components = get_arm_components(interface, DpAddress::Default)?;
                 crate::architecture::arm::component::read_trace_memory(interface, &components)
             }
         }
@@ -573,8 +614,8 @@ impl Session {
 
     /// Begin tracing a memory address over SWV.
     pub fn add_swv_data_trace(&mut self, unit: usize, address: u32) -> Result<(), ArmError> {
-        let components = self.get_arm_components(DpAddress::Default)?;
         let interface = self.get_arm_interface()?;
+        let components = get_arm_components(interface, DpAddress::Default)?;
         crate::architecture::arm::component::add_swv_data_trace(
             interface,
             &components,
@@ -585,8 +626,8 @@ impl Session {
 
     /// Stop tracing from a given SWV unit
     pub fn remove_swv_data_trace(&mut self, unit: usize) -> Result<(), ArmError> {
-        let components = self.get_arm_components(DpAddress::Default)?;
         let interface = self.get_arm_interface()?;
+        let components = get_arm_components(interface, DpAddress::Default)?;
         crate::architecture::arm::component::remove_swv_data_trace(interface, &components, unit)
     }
 

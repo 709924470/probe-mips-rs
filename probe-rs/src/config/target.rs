@@ -370,7 +370,8 @@ impl CoreExt for Core {
                 },
                 ap: options.ap,
             })),
-            probe_rs_target::CoreAccessOptions::Riscv(_) => None,
+            probe_rs_target::CoreAccessOptions::Riscv(_)
+            | probe_rs_target::CoreAccessOptions::Mips(_) => None,
         }
     }
 }

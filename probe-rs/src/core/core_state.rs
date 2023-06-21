@@ -8,7 +8,7 @@ use crate::{
         mips::{communication_interface::MipsCommunicationInterface, MipsState},
         riscv::{communication_interface::RiscvCommunicationInterface, RiscVState},
     },
-    Core, CoreType, Error, Target,
+    Core, CoreType, Error,
 };
 pub use probe_rs_target::{Architecture, CoreAccessOptions};
 
@@ -40,7 +40,7 @@ impl CombinedCoreState {
 
         let (options, debug_sequence) = match &self.core_state.core_access_options {
             ResolvedCoreOptions::Arm { options, sequence } => (options, sequence.clone()),
-            ResolvedCoreOptions::Riscv { .. } => {
+            ResolvedCoreOptions::Riscv { .. } | ResolvedCoreOptions::Mips { .. } => {
                 return Err(Error::UnableToOpenProbe(
                     "Core architecture and Probe mismatch.",
                 ))
@@ -91,7 +91,7 @@ impl CombinedCoreState {
         let (sequence_handle, arm_core_access_options) = match &self.core_state.core_access_options
         {
             ResolvedCoreOptions::Arm { sequence, options } => (sequence, options),
-            ResolvedCoreOptions::Riscv { .. } => {
+            ResolvedCoreOptions::Riscv { .. } | ResolvedCoreOptions::Mips { .. } => {
                 panic!("This should never happen. Please file a bug if it does.");
             }
         };
@@ -117,7 +117,7 @@ impl CombinedCoreState {
         let (sequence_handle, arm_core_access_options) = match &self.core_state.core_access_options
         {
             ResolvedCoreOptions::Arm { sequence, options } => (sequence, options),
-            ResolvedCoreOptions::Riscv { .. } => {
+            ResolvedCoreOptions::Riscv { .. } | ResolvedCoreOptions::Mips { .. } => {
                 panic!("This should never happen. Please file a bug if it does.");
             }
         };
@@ -196,7 +196,7 @@ impl CoreState {
     pub(crate) fn memory_ap(&self) -> MemoryAp {
         let arm_core_access_options = match &self.core_access_options {
             ResolvedCoreOptions::Arm { options, .. } => options,
-            ResolvedCoreOptions::Riscv { .. } => {
+            ResolvedCoreOptions::Riscv { .. } | ResolvedCoreOptions::Mips { .. } => {
                 panic!("This should never happen. Please file a bug if it does.")
             }
         };

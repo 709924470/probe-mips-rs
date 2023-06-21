@@ -4,7 +4,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 pub use probe_rs_target::{Architecture, CoreAccessOptions};
-use probe_rs_target::{ArmCoreAccessOptions, RiscvCoreAccessOptions};
+use probe_rs_target::{ArmCoreAccessOptions, MipsCoreAccessOptions, RiscvCoreAccessOptions};
 use std::{sync::Arc, time::Duration};
 
 pub mod core_state;
@@ -659,6 +659,9 @@ pub enum ResolvedCoreOptions {
     Riscv {
         options: RiscvCoreAccessOptions,
     },
+    Mips {
+        options: MipsCoreAccessOptions,
+    },
 }
 
 impl std::fmt::Debug for ResolvedCoreOptions {
@@ -670,6 +673,7 @@ impl std::fmt::Debug for ResolvedCoreOptions {
                 .field("options", options)
                 .finish(),
             Self::Riscv { options } => f.debug_struct("Riscv").field("options", options).finish(),
+            Self::Mips { options } => f.debug_struct("Mips").field("options", options).finish(),
         }
     }
 }
