@@ -1,9 +1,10 @@
-#![allow(unused, missing_docs)]
+#![allow(unused, missing_docs, non_snake_case)]
 use std::time::Duration;
 
 use crate::{
     core::CoreRegisters, error::Error, memory_mapped_bitfield_register, probe::JTAGAccess,
-    CoreInformation, CoreInterface, CoreRegister, MemoryInterface, RegisterId, RegisterValue,
+    CoreInformation, CoreInterface, CoreRegister, MemoryInterface, MemoryMappedRegister,
+    RegisterId, RegisterValue,
 };
 use anyhow::Result;
 use bitfield::bitfield;
@@ -13,6 +14,7 @@ use crate::CoreStatus;
 
 use self::{
     communication_interface::MipsCommunicationInterface,
+    ejtag::EJTAG_DRSEG,
     registers::{MIPS32_CORE_REGSISTERS, MIPS32_WITH_FPU_CORE_REGSISTERS},
 };
 
@@ -75,20 +77,22 @@ memory_mapped_bitfield_register! {
 }
 
 bitfield! {
-    struct ImpCode(u32);
+    pub struct ImpCode(u32);
     impl Debug;
 
     ejtag_ver, _:           31, 29;
+    r3k, _:                 28;
     dint_impl, _:           24;
     asid_size, _:           23, 21;
     mips16, _:              16;
     no_dma, _:              14;
     typ, _:                 13, 11;
     typ_info, _:            10, 1;
+    isa, _:                 0;
 }
 
 bitfield! {
-    struct IDCode(u32);
+    pub struct IDCode(u32);
     impl Debug;
 
     version, _:             31, 28;
@@ -97,7 +101,7 @@ bitfield! {
 }
 
 bitfield! {
-    struct EjtagCtrl(u32);
+    pub struct EjtagCtrl(u32);
     impl Debug;
 
     rocc, set_rocc:         31;
@@ -118,7 +122,7 @@ bitfield! {
 // fastdata register is omitted, since it only contains 1 single bit spracc r/w able
 
 #[repr(C)]
-pub struct EjtagData {
+pub(crate) struct EjtagData {
     ctrl: [u8; 4],
     data: [u8; 4],
     addr: [u8; 4],
@@ -136,21 +140,24 @@ impl MipsState {
 }
 
 pub struct Mips32<'probe> {
+    id: usize,
     interface: &'probe mut MipsCommunicationInterface,
     state: &'probe mut MipsState,
-    probe: Box<dyn JTAGAccess + 'probe>,
+
+    breakpoints: u32,
 }
 
 impl<'probe> Mips32<'probe> {
     pub fn new(
-        mut probe: Box<dyn JTAGAccess + 'probe>,
         interface: &'probe mut MipsCommunicationInterface,
         state: &'probe mut MipsState,
+        id: usize,
     ) -> Self {
         Self {
+            id,
             interface,
             state,
-            probe,
+            breakpoints: 0,
         }
     }
 }
@@ -201,19 +208,80 @@ impl<'probe> CoreInterface for Mips32<'probe> {
     }
 
     fn hw_breakpoints(&mut self) -> Result<Vec<Option<u64>>, Error> {
-        todo!()
+        if self.breakpoints == 0 {
+            let ibs_off = self.interface.ejtag.ejtag_ibs_offs;
+            let ibs_addr = IBS::get_mmio_address_from_base(ibs_off.into())?;
+            let ibs = IBS(self.read_word_32(ibs_addr)?);
+            self.breakpoints = ibs.bcn();
+        }
+        let mut bps: Vec<Option<u64>> = Vec::new();
+        let offset = self.interface.ejtag.ejtag_iba0_offs;
+        let step = self.interface.ejtag.ejtag_iba_step_size;
+        for n in 0..self.breakpoints {
+            let iban_addr = IBA::get_mmio_address_from_base((n * step + offset).into())?;
+            let iban = IBA(self.read_word_32(iban_addr)?);
+            bps.push(match iban.0 {
+                0 => None,
+                val => Some(val.into()),
+            });
+        }
+        Ok(bps)
     }
 
     fn enable_breakpoints(&mut self, state: bool) -> Result<(), Error> {
-        todo!()
+        let ibs_off = self.interface.ejtag.ejtag_ibs_offs;
+        let ibs_addr = IBS::get_mmio_address_from_base(ibs_off.into())?;
+        let mut ibs = IBS(self.read_word_32(ibs_addr)?);
+        if self.breakpoints == 0 {
+            self.breakpoints = ibs.bcn();
+        }
+        let mask = if state { 0b1111u32 } else { 0u32 };
+        match ibs.bcn() {
+            4 => ibs.0 |= mask & 0b1111,
+            2 => ibs.0 |= mask & 0b0111,
+            3 => ibs.0 |= mask & 0b0011,
+            1 => ibs.0 |= mask & 0b0001,
+            _ => (),
+        }
+        self.write_word_32(ibs_addr, ibs.0);
+        Ok(())
     }
 
     fn set_hw_breakpoint(&mut self, unit_index: usize, addr: u64) -> Result<(), Error> {
-        todo!()
+        if addr & 0xFFFFFFFF_00000000u64 != 0 {
+            return Err(Error::Mips(
+                communication_interface::MipsError::BreakpointError(addr as u32),
+            ));
+        }
+        if self.breakpoints == 0 {
+            let ibs_off = self.interface.ejtag.ejtag_ibs_offs;
+            let ibs_addr = IBS::get_mmio_address_from_base(ibs_off.into())?;
+            let ibs = IBS(self.read_word_32(ibs_addr)?);
+            self.breakpoints = ibs.bcn();
+        }
+        let offset = self.interface.ejtag.ejtag_iba0_offs;
+        let step = self.interface.ejtag.ejtag_iba_step_size;
+        let index = unit_index as u32;
+        let iban_addr = IBA::get_mmio_address_from_base((index * step + offset).into())?;
+        self.write_word_32(iban_addr, addr as u32);
+        Ok(())
     }
 
     fn clear_hw_breakpoint(&mut self, unit_index: usize) -> Result<(), Error> {
-        todo!()
+        if self.breakpoints == 0 {
+            let ibs_off = self.interface.ejtag.ejtag_ibs_offs;
+            let ibs_addr = IBS::get_mmio_address_from_base(ibs_off.into())?;
+            let ibs = IBS(self.read_word_32(ibs_addr)?);
+            self.breakpoints = ibs.bcn();
+        }
+        let offset = self.interface.ejtag.ejtag_iba0_offs;
+        let step = self.interface.ejtag.ejtag_iba_step_size;
+        for n in 0..self.breakpoints {
+            let index = unit_index as u32;
+            let iban_addr = IBA::get_mmio_address_from_base((index * step + offset).into())?;
+            self.write_word_32(iban_addr, 0);
+        }
+        Ok(())
     }
 
     fn registers(&self) -> &'static CoreRegisters {
@@ -225,6 +293,12 @@ impl<'probe> CoreInterface for Mips32<'probe> {
     }
 
     fn hw_breakpoints_enabled(&self) -> bool {
+        /*let Ok(dcr_addr) = DebugCtrl::get_mmio_address_from_base(EJTAG_DRSEG) else {
+            return false;
+        };
+        let Ok(dcr) = self.read_word_32(dcr_addr) else {
+            return false;
+        };*/
         self.interface.ejtag.debug_ctrl.inst_brk()
     }
 
@@ -249,10 +323,6 @@ impl<'probe> CoreInterface for Mips32<'probe> {
         Ok(self.state.cfg.FP())
     }
 
-    fn on_session_stop(&mut self) -> Result<(), Error> {
-        Ok(())
-    }
-
     fn program_counter(&self) -> &'static CoreRegister {
         &super::mips::registers::PC
     }
@@ -268,10 +338,27 @@ impl<'probe> CoreInterface for Mips32<'probe> {
     fn return_address(&self) -> &'static CoreRegister {
         &super::mips::registers::RA
     }
+
+    fn id(&self) -> usize {
+        self.id
+    }
+
+    fn reset_catch_set(&mut self) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn reset_catch_clear(&mut self) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn debug_core_stop(&mut self) -> Result<(), Error> {
+        todo!()
+    }
 }
 
 impl<'probe> MemoryInterface for Mips32<'probe> {
     fn supports_native_64bit_access(&mut self) -> bool {
+        // TODO: implement mips64
         false
     }
 
@@ -330,4 +417,122 @@ impl<'probe> MemoryInterface for Mips32<'probe> {
     fn flush(&mut self) -> Result<(), Error> {
         Ok(())
     }
+}
+
+memory_mapped_bitfield_register! {
+    struct IBS(u32);
+    EJTAG_DRSEG, "ibs",
+    impl From;
+
+    asid_up, _: 30;
+    bcn, _: 27, 24;
+    bp3, set_bp3: 3;
+    bp2, set_bp2: 2;
+    bp1, set_bp1: 1;
+    bp0, set_bp0: 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct IBA(u32);
+    EJTAG_DRSEG, "iba",
+    impl From;
+
+    iba, set_iba: 31, 1;
+    isa, set_isa: 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct IBM(u32);
+    EJTAG_DRSEG, "ibm",
+    impl From;
+
+    ibm, set_ibm: 31, 1;
+    isam, set_isam: 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct IBASID(u32);
+    EJTAG_DRSEG, "ibasid",
+    impl From;
+
+    asid, set_asid: 7, 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct IBC(u32);
+    EJTAG_DRSEG, "ibc",
+    impl From;
+
+    tc, set_tc: 31, 24;
+    asid_use, set_asid_use: 23;
+    tc_use, _: 22;
+    te, set_te: 2;
+    be, set_be: 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct DBS(u32);
+    EJTAG_DRSEG, "dbs",
+    impl From;
+
+    asid, _: 30;
+    bcn, _: 27, 24;
+    bp1, set_bp1: 1;
+    bp0, set_bp0: 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct DBA(u32);
+    EJTAG_DRSEG, "dba",
+    impl From;
+
+    iba, set_iba: 31, 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct DBM(u32);
+    EJTAG_DRSEG, "dbm",
+    impl From;
+
+    ibm, set_ibm: 31, 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct DBASID(u32);
+    EJTAG_DRSEG, "dbasid",
+    impl From;
+
+    asid, set_asid: 7, 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct DBC(u32);
+    EJTAG_DRSEG, "dbc",
+    impl From;
+
+    tc, set_tc: 31, 24;
+    asid_use, set_asid_use: 23;
+    tc_use, _: 22;
+    bai, set_bai: 21, 14;
+    nsb, set_nsb: 13;
+    nlb, set_nlb: 12;
+    blm, set_blm: 11, 4;
+    te, set_te: 2;
+    be, set_be: 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct DBV(u32);
+    EJTAG_DRSEG, "dbv",
+    impl From;
+
+    dbv, set_dbv: 31, 0;
+}
+
+memory_mapped_bitfield_register! {
+    struct DBVH(u32);
+    EJTAG_DRSEG, "dbvh",
+    impl From;
+
+    dbvh, set_dbvh: 31, 0;
 }

@@ -7,10 +7,7 @@ use crate::config::{ChipInfo, CoreExt, RegistryError, Target, TargetSelector};
 use crate::core::{Architecture, CombinedCoreState};
 use crate::{
     architecture::{
-        arm::{
-            communication_interface::ArmProbeInterface, component::TraceSink,
-            memory::CoresightComponent, SwoReader,
-        },
+        arm::{communication_interface::ArmProbeInterface, component::TraceSink, SwoReader},
         riscv::communication_interface::RiscvCommunicationInterface,
     },
     config::DebugSequence,
@@ -87,6 +84,7 @@ impl ArchitectureInterface {
             ArchitectureInterface::Riscv(riscv_interface) => {
                 combined_state.attach_riscv(riscv_interface)
             }
+            ArchitectureInterface::Mips(mips_state) => combined_state.attach_mips(mips_state),
         }
     }
 }
@@ -405,7 +403,7 @@ impl Session {
         Ok(interface)
     }
 
-    pub fn get_mips_interface(&mut self) -> Result<&mut MipsCommunicationInterface, MipsError> {
+    fn get_mips_interface(&mut self) -> Result<&mut MipsCommunicationInterface, MipsError> {
         let interface = match &mut self.interface {
             ArchitectureInterface::Mips(iface) => iface,
             _ => return Err(MipsError::TargetInvalid),
@@ -544,8 +542,8 @@ impl Session {
             }
         };
 
-        let components = self.get_arm_components(DpAddress::Default)?;
         let interface = self.get_arm_interface()?;
+        let components = get_arm_components(interface, DpAddress::Default)?;
 
         // Configure SWO on the probe when the trace sink is configured for a serial output. Note
         // that on some architectures, the TPIU is configured to drive SWO.

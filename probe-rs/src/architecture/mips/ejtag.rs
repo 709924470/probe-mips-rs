@@ -6,7 +6,7 @@ use super::{communication_interface::MipsError, DebugCtrl, EjtagCtrl, IDCode, Im
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum EjtagVersion {
+pub(crate) enum EjtagVersion {
     NoModule,
     EJTAG_V20,
     EJTAG_V25,
@@ -36,19 +36,19 @@ impl From<u8> for EjtagVersion {
 #[derive(Debug)]
 pub struct Ejtag {
     pub probe: Box<dyn JTAGAccess>,
-    pub idcode: IDCode,
-    pub impcode: ImpCode,
-    pub debug_ctrl: DebugCtrl,
-    pub ejtag_ctrl: EjtagCtrl,
-    pub ejtag_version: EjtagVersion,
+    pub(crate) idcode: IDCode,
+    pub(crate) impcode: ImpCode,
+    pub(crate) debug_ctrl: DebugCtrl,
+    pub(crate) ejtag_ctrl: EjtagCtrl,
+    pub(crate) ejtag_version: EjtagVersion,
     pub fast_access_save: i32,
 
     pub config_regs: u32,
     pub config: [u32; 4],
 
     /// Saves temp register contents
-    pub reg_t0: u32,
-    pub reg_t1: u32,
+    pub(crate) reg_t0: u32,
+    pub(crate) reg_t1: u32,
 
     pub scan_delay: u32,
     pub mode: i32,
@@ -60,43 +60,25 @@ pub struct Ejtag {
     pub endianness: u8,
 
     pub debug_caps: u32,
-    pub ejtag_ibs_addr: u32,
-    pub ejtag_iba0_addr: u32,
-    pub ejtag_ibc_offs: u32,
-    pub ejtag_ibm_offs: u32,
-    pub ejtag_ibasid_offs: u32,
+    // Access to these fields should be kept in the crate
+    pub(crate) ejtag_ibs_offs: u32,
+    pub(crate) ejtag_iba0_offs: u32,
+    pub(crate) ejtag_ibc_offs: u32,
+    pub(crate) ejtag_ibm_offs: u32,
+    pub(crate) ejtag_ibasid_offs: u32,
 
-    pub ejtag_dbs_addr: u32,
-    pub ejtag_dba0_addr: u32,
-    pub ejtag_dbc_offs: u32,
-    pub ejtag_dbm_offs: u32,
-    pub ejtag_dbv_offs: u32,
-    pub ejtag_dbasid_offs: u32,
+    pub(crate) ejtag_dbs_addr: u32,
+    pub(crate) ejtag_dba0_addr: u32,
+    pub(crate) ejtag_dbc_offs: u32,
+    pub(crate) ejtag_dbm_offs: u32,
+    pub(crate) ejtag_dbv_offs: u32,
+    pub(crate) ejtag_dbasid_offs: u32,
 
-    pub ejtag_iba_step_size: u32,
-    pub ejtag_dba_step_size: u32,
+    pub(crate) ejtag_iba_step_size: u32,
+    pub(crate) ejtag_dba_step_size: u32,
 }
 
-/* ejtag control register bits ECR */
-const EJTAG_CTRL_TOF: u32 = (1 << 1);
-const EJTAG_CTRL_TIF: u32 = (1 << 2);
-const EJTAG_CTRL_BRKST: u32 = (1 << 3);
-const EJTAG_CTRL_DLOCK: u32 = (1 << 5);
-const EJTAG_CTRL_DRWN: u32 = (1 << 9);
-const EJTAG_CTRL_DERR: u32 = (1 << 10);
-const EJTAG_CTRL_DSTRT: u32 = (1 << 11);
-const EJTAG_CTRL_JTAGBRK: u32 = (1 << 12);
-const EJTAG_CTRL_DBGISA: u32 = (1 << 13);
-const EJTAG_CTRL_SETDEV: u32 = (1 << 14);
-const EJTAG_CTRL_PROBEN: u32 = (1 << 15);
-const EJTAG_CTRL_PRRST: u32 = (1 << 16);
-const EJTAG_CTRL_DMAACC: u32 = (1 << 17);
-const EJTAG_CTRL_PRACC: u32 = (1 << 18);
-const EJTAG_CTRL_PRNW: u32 = (1 << 19);
-const EJTAG_CTRL_PERRST: u32 = (1 << 20);
-const EJTAG_CTRL_SYNC: u32 = (1 << 23);
-const EJTAG_CTRL_DNM: u32 = (1 << 28);
-const EJTAG_CTRL_ROCC: u32 = (1 << 31);
+pub const EJTAG_DRSEG: u64 = 0xFF300000;
 
 const EJTAG_INST_IDCODE: u32 = 0x01;
 const EJTAG_INST_IMPCODE: u32 = 0x03;
@@ -117,31 +99,31 @@ const EJTAG_INST_TCBCONTROLE: u32 = 0x16;
 const EJTAG_INST_FDC: u32 = 0x17;
 const EJTAG_INST_BYPASS: u32 = 0xFF;
 
-const EJTAG_V20_IBS: u32 = 0xFF300004;
-const EJTAG_V20_IBA0: u32 = 0xFF300100;
-const EJTAG_V20_IBC_OFFS:u32 = 0x4	/* IBC Offset */;
-const EJTAG_V20_IBM_OFFS: u32 = 0x8;
-const EJTAG_V20_IBAN_STEP:u32 = 0x10	/* Offset for next channel */;
-const EJTAG_V20_DBS: u32 = 0xFF300008;
-const EJTAG_V20_DBA0: u32 = 0xFF300200;
-const EJTAG_V20_DBC_OFFS: u32 = 0x4;
-const EJTAG_V20_DBM_OFFS: u32 = 0x8;
-const EJTAG_V20_DBV_OFFS: u32 = 0xc;
-const EJTAG_V20_DBAN_STEP: u32 = 0x10;
+pub const EJTAG_V20_IBS: u64 = 0x0004;
+pub const EJTAG_V20_IBA0: u64 = 0x0100;
+pub const EJTAG_V20_IBC_OFFS: u64 = 0x0104; /* IBC Offset */
+pub const EJTAG_V20_IBM_OFFS: u64 = 0x0108;
+pub const EJTAG_V20_IBAN_STEP: u32 = 0x10; /* Offset for next channel */
+pub const EJTAG_V20_DBS: u64 = 0x0008;
+pub const EJTAG_V20_DBA0: u64 = 0x0200;
+pub const EJTAG_V20_DBC_OFFS: u64 = 0x0204;
+pub const EJTAG_V20_DBM_OFFS: u64 = 0x0208;
+pub const EJTAG_V20_DBV_OFFS: u64 = 0x020C;
+pub const EJTAG_V20_DBAN_STEP: u32 = 0x10;
 
-const EJTAG_V25_IBS: u32 = 0xFF301000;
-const EJTAG_V25_IBA0: u32 = 0xFF301100;
-const EJTAG_V25_IBM_OFFS: u32 = 0x8;
-const EJTAG_V25_IBASID_OFFS: u32 = 0x10;
-const EJTAG_V25_IBC_OFFS: u32 = 0x18;
-const EJTAG_V25_IBAN_STEP: u32 = 0x100;
-const EJTAG_V25_DBS: u32 = 0xFF302000;
-const EJTAG_V25_DBA0: u32 = 0xFF302100;
-const EJTAG_V25_DBM_OFFS: u32 = 0x8;
-const EJTAG_V25_DBASID_OFFS: u32 = 0x10;
-const EJTAG_V25_DBC_OFFS: u32 = 0x18;
-const EJTAG_V25_DBV_OFFS: u32 = 0x20;
-const EJTAG_V25_DBAN_STEP: u32 = 0x100;
+pub const EJTAG_V25_IBS: u64 = 0x1000;
+pub const EJTAG_V25_IBA0: u64 = 0x1100;
+pub const EJTAG_V25_IBM_OFFS: u64 = 0x0008;
+pub const EJTAG_V25_IBASID_OFFS: u64 = 0x0010;
+pub const EJTAG_V25_IBC_OFFS: u64 = 0x0018;
+pub const EJTAG_V25_IBAN_STEP: u32 = 0x0100;
+pub const EJTAG_V25_DBS: u64 = 0x2000;
+pub const EJTAG_V25_DBA0: u64 = 0x2100;
+pub const EJTAG_V25_DBM_OFFS: u64 = 0x2108;
+pub const EJTAG_V25_DBASID_OFFS: u64 = 0x2110;
+pub const EJTAG_V25_DBC_OFFS: u64 = 0x2118;
+pub const EJTAG_V25_DBV_OFFS: u64 = 0x2120;
+pub const EJTAG_V25_DBAN_STEP: u32 = 0x0100;
 
 /* v2.0(Lexra) 29 - 1’b1 - Lexra Internal Trace Buffer implemented. This bit
  * overlaps with version bit of MIPS EJTAG specification. */
@@ -201,8 +183,11 @@ impl Ejtag {
             ejtag_version,
             fast_access_save: 0,
             config_regs: 0,
+            /// cp0 config0~3
             config: [0, 0, 0, 0],
+            /// temporary save
             reg_t0: 0,
+            /// temporary save
             reg_t1: 0,
             scan_delay: 0,
             mode: 0,
@@ -211,59 +196,47 @@ impl Ejtag {
             isa: (impcode & EJTAG_IMP_MIPS16),
             endianness: 0,
             debug_caps: 0,
-            ejtag_ibs_addr: 0,
-            ejtag_iba0_addr: 0,
-            ejtag_ibc_offs: 0,
-            ejtag_ibm_offs: 0,
-            ejtag_ibasid_offs: 0,
-            ejtag_dbs_addr: 0,
-            ejtag_dba0_addr: 0,
-            ejtag_dbc_offs: 0,
-            ejtag_dbm_offs: 0,
-            ejtag_dbv_offs: 0,
-            ejtag_dbasid_offs: 0,
-            ejtag_iba_step_size: 0,
-            ejtag_dba_step_size: 0,
+            ejtag_ibs_offs: EJTAG_V25_IBS as u32,
+            ejtag_iba0_offs: EJTAG_V25_IBA0 as u32,
+            ejtag_ibc_offs: EJTAG_V25_IBC_OFFS as u32,
+            ejtag_ibm_offs: EJTAG_V25_IBM_OFFS as u32,
+            ejtag_ibasid_offs: EJTAG_V25_IBASID_OFFS as u32,
+            ejtag_dbs_addr: EJTAG_V25_DBS as u32,
+            ejtag_dba0_addr: EJTAG_V25_DBA0 as u32,
+            ejtag_dbc_offs: EJTAG_V25_DBC_OFFS as u32,
+            ejtag_dbm_offs: EJTAG_V25_DBM_OFFS as u32,
+            ejtag_dbv_offs: EJTAG_V25_DBV_OFFS as u32,
+            ejtag_dbasid_offs: EJTAG_V25_DBASID_OFFS as u32,
+            ejtag_iba_step_size: EJTAG_V25_IBAN_STEP,
+            ejtag_dba_step_size: EJTAG_V25_DBAN_STEP,
         };
 
         if ejtag_version == EjtagVersion::EJTAG_V20 {
-            this.ejtag_ibs_addr = EJTAG_V20_IBS;
-            this.ejtag_iba0_addr = EJTAG_V20_IBA0;
-            this.ejtag_ibc_offs = EJTAG_V20_IBC_OFFS;
-            this.ejtag_ibm_offs = EJTAG_V20_IBM_OFFS;
+            this.ejtag_ibs_offs = EJTAG_V20_IBS as u32;
+            this.ejtag_iba0_offs = EJTAG_V20_IBA0 as u32;
+            this.ejtag_ibc_offs = EJTAG_V20_IBC_OFFS as u32;
+            this.ejtag_ibm_offs = EJTAG_V20_IBM_OFFS as u32;
 
-            this.ejtag_dbs_addr = EJTAG_V20_DBS;
-            this.ejtag_dba0_addr = EJTAG_V20_DBA0;
-            this.ejtag_dbc_offs = EJTAG_V20_DBC_OFFS;
-            this.ejtag_dbm_offs = EJTAG_V20_DBM_OFFS;
-            this.ejtag_dbv_offs = EJTAG_V20_DBV_OFFS;
+            this.ejtag_dbs_addr = EJTAG_V20_DBS as u32;
+            this.ejtag_dba0_addr = EJTAG_V20_DBA0 as u32;
+            this.ejtag_dbc_offs = EJTAG_V20_DBC_OFFS as u32;
+            this.ejtag_dbm_offs = EJTAG_V20_DBM_OFFS as u32;
+            this.ejtag_dbv_offs = EJTAG_V20_DBV_OFFS as u32;
 
             this.ejtag_iba_step_size = EJTAG_V20_IBAN_STEP;
             this.ejtag_dba_step_size = EJTAG_V20_DBAN_STEP;
-        } else {
-            this.ejtag_ibs_addr = EJTAG_V25_IBS;
-            this.ejtag_iba0_addr = EJTAG_V25_IBA0;
-            this.ejtag_ibm_offs = EJTAG_V25_IBM_OFFS;
-            this.ejtag_ibasid_offs = EJTAG_V25_IBASID_OFFS;
-            this.ejtag_ibc_offs = EJTAG_V25_IBC_OFFS;
-
-            this.ejtag_dbs_addr = EJTAG_V25_DBS;
-            this.ejtag_dba0_addr = EJTAG_V25_DBA0;
-            this.ejtag_dbm_offs = EJTAG_V25_DBM_OFFS;
-            this.ejtag_dbasid_offs = EJTAG_V25_DBASID_OFFS;
-            this.ejtag_dbc_offs = EJTAG_V25_DBC_OFFS;
-            this.ejtag_dbv_offs = EJTAG_V25_DBV_OFFS;
-
-            this.ejtag_iba_step_size = EJTAG_V25_IBAN_STEP;
-            this.ejtag_dba_step_size = EJTAG_V25_DBAN_STEP;
         }
 
         Ok(this)
     }
-    fn enter_debug(&mut self) -> Result<(), DebugProbeError> {
-        self.probe.set_ir_len(5);
-        self.probe
-            .write_register(EJTAG_INST_EJTAGBOOT, &[0u8; 32], 32)?;
+    fn target_reset_assert(&mut self, halt: bool) -> Result<(), DebugProbeError> {
+        self.probe.target_reset_assert();
+        let boot = match halt {
+            false => EJTAG_INST_NORMALBOOT,
+            true => EJTAG_INST_EJTAGBOOT,
+        };
+        let bypass: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];
+        self.probe.write_register(boot, &bypass, 32)?;
         Ok(())
     }
     pub fn supports_hardware_breakpoint(self) -> bool {

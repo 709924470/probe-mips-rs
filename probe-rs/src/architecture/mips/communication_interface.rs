@@ -1,7 +1,9 @@
 #![allow(missing_docs)]
+
 use super::ejtag::{Ejtag, EjtagVersion};
 use crate::{
-    memory_mapped_bitfield_register, DebugProbeError, Error as ProbeRsError, MemoryMappedRegister,
+    memory::valid_32bit_address, memory_mapped_bitfield_register, probe::JTAGAccess,
+    DebugProbeError, Error as ProbeRsError, Error, MemoryInterface, MemoryMappedRegister,
 };
 
 /// Some error occurered when working with the MIPS core.
@@ -79,89 +81,81 @@ pub struct MipsCommunicationInterface {
     pub state: MipsCommunicationInterfaceState,
 }
 
-pub trait MultipleRegisterOffsets<T>: MemoryMappedRegister<T> {
-    const N_OFFSET: u32;
+impl MipsCommunicationInterface {
+    pub fn new(probe: Box<dyn JTAGAccess>) -> Result<Self, (Box<dyn JTAGAccess>, MipsError)> {
+        let ejtag = Ejtag::new(probe)?;
+        let state = MipsCommunicationInterfaceState {
+            ejtag_version: ejtag.ejtag_version,
+        };
 
-    fn get_mmio_address_by_id(base_address: u64, index: u32) -> Result<u64, anyhow::Error> {
-        if let Some(actual_offset) =
-            Self::ADDRESS_OFFSET.checked_add((Self::N_OFFSET * index).into())
-        {
-            if let Some(actual_address) = base_address.checked_add(actual_offset) {
-                return Ok(actual_address);
-            }
-        }
-        Err(
-            anyhow::anyhow!(
-                "Overflow while calculating the MMIO address for {}{} at offset {:#x} from base address {:#x}", 
-                Self::NAME, 
-                index, 
-                Self::ADDRESS_OFFSET, 
-                base_address
-            )
-        )
+        Ok(Self { ejtag, state })
     }
 }
 
-memory_mapped_bitfield_register! {
-    struct IBS(u32);
-    0x1000, "ibs",
-    impl From;
+impl MemoryInterface for MipsCommunicationInterface {
+    fn supports_native_64bit_access(&mut self) -> bool {
+        // TODO: implement mips64
+        false
+    }
 
-    asid_up, _: 30;
-    bcn, _: 27, 24;
-    bp3, set_bp3: 3;
-    bp2, set_bp2: 2;
-    bp1, set_bp1: 1;
-    bp0, set_bp0: 0;
-}
+    fn read_word_64(&mut self, address: u64) -> Result<u64, Error> {
+        let lo: u64 = self.read_word_32(address)?.into();
+        let hi: u64 = self.read_word_32(address + 4)?.into();
 
-memory_mapped_bitfield_register! {
-    struct IBA(u32);
-    0x1100, "iba",
-    impl From;
+        let result: u64 = hi << 32 | lo;
+        Ok(result)
+    }
 
-    iba, set_iba: 31, 1;
-    isa, set_isa: 0;
-}
+    fn read_word_32(&mut self, address: u64) -> Result<u32, Error> {
+        let address = valid_32bit_address(address)?;
+        todo!()
+    }
 
-memory_mapped_bitfield_register! {
-    struct IBM(u32);
-    0x1108, "ibm",
-    impl From;
+    fn read_word_8(&mut self, address: u64) -> Result<u8, Error> {
+        todo!()
+    }
 
-    ibm, set_ibm: 31, 1;
-    isam, set_isam: 0;
-}
+    fn read_64(&mut self, address: u64, data: &mut [u64]) -> Result<(), Error> {
+        todo!()
+    }
 
-memory_mapped_bitfield_register! {
-    struct IBASID(u32);
-    0x1110, "ibasid",
-    impl From;
+    fn read_32(&mut self, address: u64, data: &mut [u32]) -> Result<(), Error> {
+        todo!()
+    }
 
-    asid, set_asid: 7, 0;
-}
+    fn read_8(&mut self, address: u64, data: &mut [u8]) -> Result<(), Error> {
+        todo!()
+    }
 
-memory_mapped_bitfield_register! {
-    struct IBC(u32);
-    0x1118, "ibc",
-    impl From;
+    fn write_word_64(&mut self, address: u64, data: u64) -> Result<(), Error> {
+        todo!()
+    }
 
-    tc, set_tc: 31, 24;
-    asid_use, set_asid_use: 23;
-    tc_use, _: 22;
-    te, set_te: 2;
-    be, set_be: 0;
-}
+    fn write_word_32(&mut self, address: u64, data: u32) -> Result<(), Error> {
+        todo!()
+    }
 
-impl MultipleRegisterOffsets<u32> for IBA {
-const N_OFFSET: u32 = 0x100;
-}
-impl MultipleRegisterOffsets<u32> for IBM {
-const N_OFFSET: u32 = 0x100;
-}
-impl MultipleRegisterOffsets<u32> for IBASID {
-const N_OFFSET: u32 = 0x100;
-}
-impl MultipleRegisterOffsets<u32> for IBC {
-const N_OFFSET: u32 = 0x100;
+    fn write_word_8(&mut self, address: u64, data: u8) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn write_64(&mut self, address: u64, data: &[u64]) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn write_32(&mut self, address: u64, data: &[u32]) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn write_8(&mut self, address: u64, data: &[u8]) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn supports_8bit_transfers(&self) -> Result<bool, Error> {
+        Ok(true)
+    }
+
+    fn flush(&mut self) -> Result<(), Error> {
+        Ok(())
+    }
 }

@@ -8,7 +8,6 @@ use crate::{
         mips::{communication_interface::MipsCommunicationInterface, MipsState},
         riscv::{communication_interface::RiscvCommunicationInterface, RiscVState},
     },
-    probe::JTAGAccess,
     Core, CoreType, Error, Target,
 };
 pub use probe_rs_target::{Architecture, CoreAccessOptions};
@@ -143,6 +142,22 @@ impl CombinedCoreState {
     ) -> Result<Core<'probe>, Error> {
         Ok(match &mut self.specific_state {
             SpecificCoreState::Riscv(s) => Core::new(crate::architecture::riscv::Riscv32::new(
+                interface, s, self.id,
+            )),
+            _ => {
+                return Err(Error::UnableToOpenProbe(
+                    "Core architecture and Probe mismatch.",
+                ))
+            }
+        })
+    }
+
+    pub(crate) fn attach_mips<'probe>(
+        &'probe mut self,
+        interface: &'probe mut MipsCommunicationInterface,
+    ) -> Result<Core<'probe>, Error> {
+        Ok(match &mut self.specific_state {
+            SpecificCoreState::Mips(s) => Core::new(crate::architecture::mips::Mips32::new(
                 interface, s, self.id,
             )),
             _ => {
