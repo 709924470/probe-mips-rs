@@ -37,7 +37,6 @@ pub(super) struct ChainParams {
     irlen: usize,
 }
 
-#[allow(clippy::upper_case_acronyms, non_snake_case)]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Signal {
     name: String,
@@ -52,12 +51,12 @@ impl Signal {
 }
 
 pub trait GetSignal {
-    fn get_signal_by_name(&self, name: String) -> Option<&Signal>;
+    fn get_signal_by_name(&self, name: &'static str) -> Option<&Signal>;
 }
 
 impl GetSignal for Vec<Signal> {
-    fn get_signal_by_name(&self, name: String) -> Option<&Signal> {
-        self.iter().find(|x| x.name_eq(&name))
+    fn get_signal_by_name(&self, name: &'static str) -> Option<&Signal> {
+        self.iter().find(|x| x.name_eq(name))
     }
 }
 
@@ -142,6 +141,11 @@ impl JtagAdapter {
         }
 
         Ok(result)
+    }
+
+    fn wait(&mut self, us: u64) {
+        let secs = Duration::from_micros(us);
+        std::thread::sleep(secs);
     }
 
     fn shift_tms(&mut self, mut data: &[u8], mut bits: usize) -> io::Result<()> {
@@ -254,10 +258,43 @@ impl JtagAdapter {
     }
 
     pub fn device_reset(&mut self) -> io::Result<()> {
-        let srst = self.signals.get_signal_by_variant("nSRST");
-        let trst = self.signals.get_signal_by_variant("nTRST");
+        let signals = self.signals.clone();
+        let trst = signals.get_signal_by_name("nTRST");
+        let srst = signals.get_signal_by_name("nSRST");
 
-        tracing::trace!("reset target device with")
+        if srst.is_none() && trst.is_none() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Could not find pin defination of nSRST and nTRST",
+            ));
+        }
+        tracing::trace!("reset target device with trst {:?} srst {:?}", trst, srst);
+
+        // Asserts target reset, this seems only need to be called once per session
+        if let Some(trst) = trst {
+            let dir = if trst.dir { 0xffu8 } else { 0x00u8 };
+            self.device.write_all(&[0x80, (!trst.data) as u8, dir])?;
+            self.device
+                .write_all(&[0x82, ((!trst.data) >> 8) as u8, dir])?;
+            // Apparently this is not needed?
+            // self.wait(2000);
+            // self.device.write_all(&[0x80, (trst.data) as u8, dir])?;
+            // self.device
+            //     .write_all(&[0x82, ((trst.data) >> 8) as u8, dir])?;
+        };
+        // Asserts system reset
+        if let Some(srst) = srst {
+            let dir = if srst.dir { 0xffu8 } else { 0x00u8 };
+            self.device.write_all(&[0x80, !srst.data as u8, dir])?;
+            self.device
+                .write_all(&[0x82, (!srst.data >> 8) as u8, dir])?;
+            self.wait(2000);
+            self.device.write_all(&[0x80, (srst.data) as u8, dir])?;
+            self.device
+                .write_all(&[0x82, ((srst.data) >> 8) as u8, dir])?;
+        };
+
+        Ok(())
     }
 
     /// Execute RUN-TEST/IDLE for a number of cycles
@@ -297,6 +334,7 @@ impl JtagAdapter {
     fn scan(&mut self) -> io::Result<Vec<JtagChainItem>> {
         let max_device_count = 8;
 
+        self.device_reset()?;
         self.reset()?;
 
         let cmd = vec![0xff; max_device_count * 4];

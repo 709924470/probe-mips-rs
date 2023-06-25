@@ -15,21 +15,21 @@ pub const PC: CoreRegister = CoreRegister {
 
 pub const SP: CoreRegister = CoreRegister {
     name: "sp",
-    roles: &[RegisterRole::StackPointer],
+    roles: &[RegisterRole::Other("r29"), RegisterRole::StackPointer],
     id: RegisterId(29),
     data_type: RegisterDataType::UnsignedInteger(32),
 };
 
 pub const FP: CoreRegister = CoreRegister {
     name: "fp",
-    roles: &[RegisterRole::FramePointer],
+    roles: &[RegisterRole::Other("r30"), RegisterRole::FramePointer],
     id: RegisterId(30),
     data_type: RegisterDataType::UnsignedInteger(32),
 };
 
 pub const RA: CoreRegister = CoreRegister {
     name: "ra",
-    roles: &[RegisterRole::ReturnAddress],
+    roles: &[RegisterRole::Other("r31"), RegisterRole::ReturnAddress],
     id: RegisterId(31),
     data_type: RegisterDataType::UnsignedInteger(32),
 };
@@ -469,43 +469,43 @@ static MIPS32_FPU_REGISTERS: &[CoreRegister] = &[
 static MIPS32_DSP_REGISTERS: &[CoreRegister] = &[
     CoreRegister {
         name: "hi1",
-        roles: &[RegisterRole::Other("hi1"), RegisterRole::Other("hi1")],
+        roles: &[RegisterRole::Other("hi1")],
         id: RegisterId(72),
         data_type: RegisterDataType::UnsignedInteger(32),
     },
     CoreRegister {
         name: "lo1",
-        roles: &[RegisterRole::Other("lo1"), RegisterRole::Other("lo1")],
+        roles: &[RegisterRole::Other("lo1")],
         id: RegisterId(73),
         data_type: RegisterDataType::UnsignedInteger(32),
     },
     CoreRegister {
         name: "hi2",
-        roles: &[RegisterRole::Other("hi2"), RegisterRole::Other("hi2")],
+        roles: &[RegisterRole::Other("hi2")],
         id: RegisterId(74),
         data_type: RegisterDataType::UnsignedInteger(32),
     },
     CoreRegister {
         name: "lo2",
-        roles: &[RegisterRole::Other("lo2"), RegisterRole::Other("lo2")],
+        roles: &[RegisterRole::Other("lo2")],
         id: RegisterId(75),
         data_type: RegisterDataType::UnsignedInteger(32),
     },
     CoreRegister {
         name: "hi3",
-        roles: &[RegisterRole::Other("hi3"), RegisterRole::Other("hi3")],
+        roles: &[RegisterRole::Other("hi3")],
         id: RegisterId(76),
         data_type: RegisterDataType::UnsignedInteger(32),
     },
     CoreRegister {
         name: "lo3",
-        roles: &[RegisterRole::Other("lo3"), RegisterRole::Other("lo3")],
+        roles: &[RegisterRole::Other("lo3")],
         id: RegisterId(77),
         data_type: RegisterDataType::UnsignedInteger(32),
     },
     CoreRegister {
         name: "dspctl",
-        roles: &[RegisterRole::Other("dspctl"), RegisterRole::Other("dspctl")],
+        roles: &[RegisterRole::Other("dspctl")],
         id: RegisterId(78),
         data_type: RegisterDataType::UnsignedInteger(32),
     },

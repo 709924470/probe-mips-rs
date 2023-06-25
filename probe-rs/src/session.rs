@@ -1,4 +1,5 @@
 use crate::architecture::arm::component::get_arm_components;
+use crate::architecture::arm::memory::CoresightComponent;
 use crate::architecture::arm::sequences::{ArmDebugSequence, DefaultArmSequence};
 use crate::architecture::arm::{ArmError, DpAddress};
 use crate::architecture::mips::communication_interface::{MipsCommunicationInterface, MipsError};
@@ -120,6 +121,9 @@ impl Session {
             Architecture::Riscv => {
                 Self::attach_riscv(probe, target, attach_method, permissions, cores)?
             }
+            Architecture::Mips => {
+                Self::attach_mips(probe, target, attach_method, permissions, cores)?
+            }
         };
 
         session.clear_all_hw_breakpoints()?;
@@ -144,7 +148,7 @@ impl Session {
 
         let sequence_handle = match &target.debug_sequence {
             DebugSequence::Arm(sequence) => sequence.clone(),
-            DebugSequence::Riscv(_) => {
+            DebugSequence::Riscv(_) | DebugSequence::Mips(_) => {
                 panic!("Mismatch between architecture and sequence type!")
             }
         };
@@ -262,7 +266,7 @@ impl Session {
 
         let sequence_handle = match &target.debug_sequence {
             DebugSequence::Riscv(sequence) => sequence.clone(),
-            DebugSequence::Arm(_) => {
+            DebugSequence::Arm(_) | DebugSequence::Mips(_) => {
                 panic!("Mismatch between architecture and sequence type!")
             }
         };
@@ -492,7 +496,7 @@ impl Session {
     pub fn has_sequence_erase_all(&self) -> bool {
         match &self.target.debug_sequence {
             DebugSequence::Arm(seq) => seq.debug_erase_sequence().is_some(),
-            DebugSequence::Riscv(_) => false,
+            DebugSequence::Riscv(_) | DebugSequence::Mips(_) => false,
         }
     }
 
@@ -507,7 +511,7 @@ impl Session {
     pub fn sequence_erase_all(&mut self) -> Result<(), Error> {
         let interface = match &mut self.interface {
             ArchitectureInterface::Arm(interface) => interface,
-            ArchitectureInterface::Riscv(_) => {
+            ArchitectureInterface::Riscv(_) | ArchitectureInterface::Mips(_) => {
                 return Err(Error::Probe(crate::DebugProbeError::NotImplemented(
                     "Debug Erase Sequence",
                 )))
@@ -516,7 +520,7 @@ impl Session {
 
         let debug_sequence = match &self.target.debug_sequence {
             DebugSequence::Arm(seq) => seq.clone(),
-            DebugSequence::Riscv(_) => {
+            DebugSequence::Riscv(_) | DebugSequence::Mips(_) => {
                 unreachable!("This should never happen. Please file a bug if it does.")
             }
         };
@@ -578,7 +582,7 @@ impl Session {
 
         let sequence_handle = match &self.target.debug_sequence {
             DebugSequence::Arm(sequence) => sequence.clone(),
-            DebugSequence::Riscv(_) => {
+            DebugSequence::Riscv(_) | DebugSequence::Mips(_) => {
                 panic!("Mismatch between architecture and sequence type!")
             }
         };

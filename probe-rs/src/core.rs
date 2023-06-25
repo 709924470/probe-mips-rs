@@ -339,7 +339,8 @@ impl<'probe> Core<'probe> {
             CoreAccessOptions::Arm(options) => {
                 let sequence = match &target.debug_sequence {
                     crate::config::DebugSequence::Arm(seq) => seq.clone(),
-                    crate::config::DebugSequence::Riscv(_) => panic!(
+                    crate::config::DebugSequence::Riscv(_)
+                    | crate::config::DebugSequence::Mips(_) => panic!(
                         "Mismatch between sequence and core kind. This is a bug, please report it."
                     ),
                 };
@@ -354,6 +355,14 @@ impl<'probe> Core<'probe> {
             }
             CoreAccessOptions::Riscv(options) => {
                 let core_state = CoreState::new(ResolvedCoreOptions::Riscv { options });
+                CombinedCoreState {
+                    id,
+                    core_state,
+                    specific_state,
+                }
+            }
+            CoreAccessOptions::Mips(options) => {
+                let core_state = CoreState::new(ResolvedCoreOptions::Mips { options });
                 CombinedCoreState {
                     id,
                     core_state,

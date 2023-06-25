@@ -88,7 +88,7 @@ pub struct FtdiOption {
     pub pin_layout: Option<(u16, u16)>,
     /// The signal masks for FTDI devices.
     #[cfg(feature = "ftdi")]
-    pub signals: Option<Vec<Signals>>,
+    pub signals: Option<Vec<ftdi::Signal>>,
     /// The signal masks for FTDI devices
     #[cfg(not(feature = "ftdi"))]
     pub signals: Option<Vec<String>>,
@@ -796,6 +796,8 @@ impl DebugProbeInfo {
         }
     }
 
+    /// Creates a new info struct that uniquely identifies a FTDI probe.
+    /// Because of theres no overloading functions in rust.
     #[cfg(feature = "ftdi")]
     pub fn new_with_ftdi<S: Into<String>>(
         identifier: S,
