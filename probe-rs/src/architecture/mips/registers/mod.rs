@@ -1,7 +1,7 @@
 #![allow(clippy::no_effect, clippy::identity_op)]
 use once_cell::sync::Lazy;
 
-use crate::CoreRegisters;
+use crate::{CoreRegister, CoreRegisters};
 
 use self::{base::MIPS32_REGISTERS_SET, cp0::MIPS32_CP0_REGISTERS, fpu::MIPS32_FPU_REGISTERS};
 
@@ -11,6 +11,8 @@ pub mod dsp;
 pub mod fpu;
 
 pub use base::{FP, PC, RA, SP, STATUS};
+
+use super::assembly::Mips32Instruction;
 
 pub(crate) static MIPS32_CORE_REGISTERS: Lazy<CoreRegisters> = Lazy::new(|| {
     CoreRegisters::new(

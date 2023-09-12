@@ -150,21 +150,6 @@ pub struct Mips32<'probe> {
     breakpoints: u32,
 }
 
-impl<'probe> Mips32<'probe> {
-    pub fn new(
-        interface: &'probe mut MipsCommunicationInterface,
-        state: &'probe mut MipsState,
-        id: usize,
-    ) -> Self {
-        Self {
-            id,
-            interface,
-            state,
-            breakpoints: 0,
-        }
-    }
-}
-
 impl<'probe> ExceptionInterface for Mips32<'probe> {
     fn exception_details(
         &mut self,
@@ -194,6 +179,21 @@ impl<'probe> ExceptionInterface for Mips32<'probe> {
         Err(Error::NotImplemented(
             "Not implemented for this architecture.",
         ))
+    }
+}
+
+impl<'probe> Mips32<'probe> {
+    pub fn new(
+        interface: &'probe mut MipsCommunicationInterface,
+        state: &'probe mut MipsState,
+        id: usize,
+    ) -> Self {
+        Self {
+            id,
+            interface,
+            state,
+            breakpoints: 0,
+        }
     }
 }
 

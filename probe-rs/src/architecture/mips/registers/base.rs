@@ -1,4 +1,5 @@
 use crate::{
+    architecture::mips::assembly::Mips32Instruction,
     core::{CoreRegisters, RegisterDataType, RegisterId, RegisterRole, UnwindRule},
     CoreRegister,
 };
