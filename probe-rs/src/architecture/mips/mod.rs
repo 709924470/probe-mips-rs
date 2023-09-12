@@ -2,7 +2,10 @@
 use std::time::Duration;
 
 use crate::{
-    core::CoreRegisters, error::Error, memory_mapped_bitfield_register, probe::JTAGAccess,
+    core::{CoreRegisters, ExceptionInterface},
+    error::Error,
+    memory_mapped_bitfield_register,
+    probe::JTAGAccess,
     CoreInformation, CoreInterface, CoreRegister, MemoryInterface, MemoryMappedRegister,
     RegisterId, RegisterValue,
 };
@@ -15,7 +18,7 @@ use crate::CoreStatus;
 use self::{
     communication_interface::MipsCommunicationInterface,
     ejtag::EJTAG_DRSEG,
-    registers::{MIPS32_CORE_REGSISTERS, MIPS32_WITH_FPU_CORE_REGSISTERS},
+    registers::{MIPS32_CORE_REGISTERS, MIPS32_WITH_FPU_CORE_REGISTERS},
 };
 
 pub mod communication_interface;
@@ -162,6 +165,38 @@ impl<'probe> Mips32<'probe> {
     }
 }
 
+impl<'probe> ExceptionInterface for Mips32<'probe> {
+    fn exception_details(
+        &mut self,
+        _stackframe_registers: &crate::debug::DebugRegisters,
+    ) -> Result<Option<crate::core::ExceptionInfo>, Error> {
+        // For architectures where the exception handling has not been implemented in probe-rs,
+        // this will result in maintaining the current `unwind` behavior, i.e. unwinding will stop
+        // when the first frame is reached that was called from an exception handler.
+        Err(Error::NotImplemented(
+            "Unwinding of exception frames has not yet been implemented for this architecture.",
+        ))
+    }
+
+    fn calling_frame_registers(
+        &mut self,
+        _stackframe_registers: &crate::debug::DebugRegisters,
+    ) -> Result<crate::debug::DebugRegisters, crate::Error> {
+        Err(Error::NotImplemented(
+            "Not implemented for this architecture.",
+        ))
+    }
+
+    fn exception_description(
+        &mut self,
+        _stackframe_registers: &crate::debug::DebugRegisters,
+    ) -> Result<String, crate::Error> {
+        Err(Error::NotImplemented(
+            "Not implemented for this architecture.",
+        ))
+    }
+}
+
 impl<'probe> CoreInterface for Mips32<'probe> {
     fn wait_for_core_halted(&mut self, timeout: Duration) -> Result<(), Error> {
         todo!()
@@ -286,9 +321,9 @@ impl<'probe> CoreInterface for Mips32<'probe> {
 
     fn registers(&self) -> &'static CoreRegisters {
         if !self.state.cfg.FP() {
-            &MIPS32_CORE_REGSISTERS
+            &MIPS32_CORE_REGISTERS
         } else {
-            &MIPS32_WITH_FPU_CORE_REGSISTERS
+            &MIPS32_WITH_FPU_CORE_REGISTERS
         }
     }
 
@@ -353,6 +388,24 @@ impl<'probe> CoreInterface for Mips32<'probe> {
 
     fn debug_core_stop(&mut self) -> Result<(), Error> {
         todo!()
+    }
+
+    fn on_session_stop(&mut self) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn enable_vector_catch(
+        &mut self,
+        _condition: crate::VectorCatchCondition,
+    ) -> Result<(), Error> {
+        Err(Error::NotImplemented("vector catch"))
+    }
+
+    fn disable_vector_catch(
+        &mut self,
+        _condition: crate::VectorCatchCondition,
+    ) -> Result<(), Error> {
+        Err(Error::NotImplemented("vector catch"))
     }
 }
 
