@@ -1,8 +1,15 @@
+use core::time;
+use std::time::Instant;
+
 use bitfield::bitfield;
 
 use crate::{memory_mapped_bitfield_register, probe::JTAGAccess, DebugProbeError};
 
-use super::{communication_interface::MipsError, DebugCtrl, EjtagCtrl, IDCode, ImpCode};
+use super::{
+    assembly::{Mips32Instruction, T0},
+    communication_interface::MipsError,
+    DebugCtrl, EjtagCtrl, IDCode, ImpCode,
+};
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -50,6 +57,7 @@ pub struct Ejtag {
     pub(crate) reg_t0: u32,
     pub(crate) reg_t1: u32,
 
+    // Usually under 200_0000 ns(200us, 0.2ms)
     pub scan_delay: u32,
     pub mode: i32,
 
@@ -239,7 +247,91 @@ impl Ejtag {
         self.probe.write_register(boot, &bypass, 32)?;
         Ok(())
     }
+    fn exec_queue(&mut self, queue: Mips32Instruction) -> Result<(), DebugProbeError> {
+        const ZERO: [u8; 4] = [0, 0, 0, 0];
+        let mut pracc_text: u32 = 0xff200200;
+        let ejtag_ctrl = self.get_ejtag_ctrl()?.0.to_le_bytes();
+        queue.get_raw().iter().for_each(|inst| {
+            let mut data = ejtag_ctrl.to_vec();
+            data.extend(inst.to_le_bytes().iter());
+            data.extend(ZERO.iter());
+            self.probe
+                .write_register(EJTAG_INST_ALL, data.as_slice(), 96)?;
+        });
+        Ok(())
+    }
+    fn wait_for_pracc(&mut self) -> Result<(), DebugProbeError> {
+        let time = Instant::now();
+        let timeout = time::Duration::from_secs(1);
+        loop {
+            let ctrl = self.get_ejtag_ctrl()?;
+            if ctrl.pracc() {
+                break;
+            }
+            if time.elapsed() > timeout {
+                return Err(DebugProbeError::Timeout);
+            }
+        }
+        Ok(())
+    }
+    fn clean_pracc(&mut self) -> Result<(), DebugProbeError> {
+        let time = Instant::now();
+        let timeout = time::Duration::from_secs(1);
+        loop {
+            let ctrl = self.get_ejtag_ctrl()?;
+            if ctrl.pracc() {
+                break;
+            }
+            if time.elapsed() > timeout {
+                return Err(DebugProbeError::Timeout);
+            }
+        }
+        Ok(())
+    }
+    pub fn get_ejtag_ctrl(&mut self) -> Result<EjtagCtrl, DebugProbeError> {
+        let ctrl = self.probe.read_register(EJTAG_INST_CONTROL, 32)?;
+        if ctrl.len() < 4 {
+            return Err(DebugProbeError::DebugSequenceNotSupported(
+                "Invalid EJTAG Control sequence.",
+            ));
+        }
+        let mut _ctrl: [u8; 4] = [0, 0, 0, 0];
+        _ctrl.copy_from_slice(ctrl.as_slice());
+        Ok(EjtagCtrl(u32::from_le_bytes(_ctrl)))
+    }
+    pub fn set_ejtag_ctrl(&mut self, ejtag_ctrl: EjtagCtrl) -> Result<(), DebugProbeError> {
+        let ctrl =
+            self.probe
+                .write_register(EJTAG_INST_CONTROL, &ejtag_ctrl.0.to_le_bytes(), 32)?;
+        if ctrl.len() < 4 {
+            return Err(DebugProbeError::DebugSequenceNotSupported(
+                "Invalid EJTAG Control sequence.",
+            ));
+        }
+        let mut _ctrl: [u8; 4] = [0, 0, 0, 0];
+        _ctrl.copy_from_slice(ctrl.as_slice());
+        self.ejtag_ctrl = EjtagCtrl(u32::from_le_bytes(_ctrl));
+        Ok(())
+    }
     pub fn supports_hardware_breakpoint(self) -> bool {
         self.debug_ctrl.inst_brk()
+    }
+    pub fn enable_step(&mut self, enabled: bool) -> Result<(), DebugProbeError> {
+        let mut queue = Mips32Instruction::new();
+        queue = queue.mfc0(T0, 23, 0).ori(T0, T0, 0x100);
+
+        if !enabled {
+            queue = queue.xori(T0, T0, 0x100);
+        }
+
+        queue = queue
+            .mtc0(T0, 23, 0) // Apply the bit
+            .lui(T0, self.reg_t0 >> 16); // Restore t8
+
+        queue = queue
+            .clone()
+            .b((0u32 - (queue.get_count() * 4)) & 0xFFFFu32) // Jump back to start, with forbidden slot
+            .ori(T0, T0, self.reg_t0 & 0xFFFF);
+        self.exec_queue(queue)
     }
 }
